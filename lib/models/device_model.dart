@@ -24,6 +24,12 @@ class Device  {
     "name": this.name,
     "connectedToWiFi": this.connectedToWiFi,
   };
+
+  Map <String, dynamic> toDatabaseJson() => {
+    "mac": this.mac,
+    "name": this.name,
+    "connectedToWiFi": this.connectedToWiFi,
+  };
 }
 
 

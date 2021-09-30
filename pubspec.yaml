@@ -37,6 +37,9 @@ dependencies:
   theme_mode_handler: ^3.0.0
   wifi_configuration_2: ^1.1.0+1
   provider: ^6.0.1
+  sqflite: ^2.0.0+4
+  path_provider: ^2.0.4
+  udp: ^3.0.3
 
 
 dev_dependencies:

@@ -1,6 +1,7 @@
 import 'package:control_termotanque/models/models.dart';
 import 'package:flutter/material.dart';
 import 'package:wifi_configuration_2/wifi_configuration_2.dart';
+import 'package:udp/udp.dart';
 
 WifiConfiguration ? wifiConfiguration2;
 
@@ -89,7 +90,27 @@ class _ChooseWifiPageState extends State<ChooseWifiPage> {
 
 
   Future<List<dynamic>> getArduinoWifiList() async {
-    
-    return wifiConfiguration2!.getWifiList();
+    var sender = await UDP.bind(Endpoint.broadcast(port: Port(8888)));
+    // send a simple string to a broadcast endpoint on port 65001.
+    var dataLength = await sender.send(
+        "Dinamico;SCANWIFI".codeUnits, Endpoint.broadcast(port: Port(8888)));
+
+    print("${dataLength} bytes sent.");
+
+    // creates a new UDP instance and binds it to the local address and the port
+    // 65002.
+    var receiver = await UDP.bind(Endpoint.any(port: Port(8890)));
+    List<WifiNetwork> wifiNetworkList = [];
+    // receiving\listening
+    bool listen = await receiver.listen((datagram) {
+      var str = String.fromCharCodes(datagram.data);
+      print(str);
+      wifiNetworkList.add(WifiNetwork(ssid: str.split(";")[1],signalLevel: "5", security: "none"));
+    }, timeout: Duration(seconds: 5));
+    print(listen);
+    // close the UDP instances and their sockets.
+    sender.close();
+    receiver.close();
+    return wifiNetworkList;
   }
 }

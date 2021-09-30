@@ -46,7 +46,7 @@ class _SearchDevicesPageState extends State<SearchDevicesPage> {
               List<WifiNetwork> list = snapshot.data! as List<WifiNetwork>;
               List<WifiNetwork> wifiNetworkList = [];
               list.forEach((wifiNetwork) {
-                if (wifiNetwork.ssid == "Dinamico"){
+                if (wifiNetwork.ssid.contains("Dinamico")){
                   wifiNetworkList.add(wifiNetwork);
                 }
               });
@@ -66,22 +66,11 @@ class _SearchDevicesPageState extends State<SearchDevicesPage> {
                           return ListTile(
                             leading: Icon(
                                 IconData(59653, fontFamily: 'signal_wifi'),size: 30,),
-                            title: Text('${wifiNetwork.ssid!} N° ${index + 1}'),
+                            title: Text('${wifiNetwork.ssid!} '),
                             selected: false,
                             onTap: (){
-
-                              wifiConfiguration!.connectToWifi(wifiNetwork.ssid, wifiNetwork.bssid, "package:control_termotanque").then((connectionStatus){
-                                switch (connectionStatus) {
-                                  case WifiConnectionStatus.connected:
-                                    print("connected");
-                                    Navigator.of(context).pushNamed("/choose_wifi",arguments:{"device": Device(mac:wifiNetwork.bssid).toJson()});
-                                    break;
-
-                                  case WifiConnectionStatus.alreadyConnected:
-                                    print("alreadyConnected");
-                                    break;
-                                }
-                              });
+                              Navigator.of(context).pushNamed("/choose_wifi",arguments:{"device": Device(mac:wifiNetwork.bssid).toJson()});
+                              
                             },
 
                           );

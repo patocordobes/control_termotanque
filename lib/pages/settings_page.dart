@@ -28,7 +28,7 @@ class _SettingsPageState extends State<SettingsPage> {
           children: [
             ListTile(
               title: Text("Tema"),
-              subtitle: Text("Actual: ${themeMode.toString().replaceFirst(RegExp(r'ThemeMode.'), "")}, Toca para cambiar"), // TODO hacer manejo de cuenta
+              subtitle: Text("Actual: ${themeMode.toString().replaceFirst(RegExp(r'ThemeMode.'), "")}, Toca para cambiar"), 
               leading: Icon(Icons.brightness_4_rounded),
               onTap: () {
                 _selectThemeMode(context).then((theme){
@@ -39,12 +39,12 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             ListTile(
               title: Text("Notificaciones"),
-              subtitle: Text("Tonos de mensajes, Cuando mostrar notificacion"),// TODO hacer manejo de notificaciones
+              subtitle: Text("Tonos de mensajes, Cuando mostrar notificacion"),
               leading: Icon(Icons.notifications_rounded),
             ),
             ListTile(
               title: Text("Ayuda"),
-              subtitle: Text("Centro de ayuda, Reportar bugs"),// TODO hacer manejo de notificaciones
+              subtitle: Text("Centro de ayuda, Reportar bugs"),
               leading: Icon(Icons.help_outline),
             ),
           ],

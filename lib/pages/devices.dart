@@ -1,3 +1,5 @@
+import 'package:control_termotanque/models/models.dart';
+import 'package:control_termotanque/repository/models_repository.dart';
 import 'package:flutter/material.dart';
 
 class DevicesPage extends StatefulWidget {
@@ -10,7 +12,7 @@ class DevicesPage extends StatefulWidget {
 }
 
 class _DevicesPageState extends State<DevicesPage> {
-
+  ModelsRepository modelsRepository = ModelsRepository();
   @override
   Widget build(BuildContext context) {
     // This method is rerun every time setState is called, for instance as done
@@ -33,36 +35,46 @@ class _DevicesPageState extends State<DevicesPage> {
           )
         ],
       ),
-      body: Column(
-        children: [
-          ListTile(
-            title: Text("Dispositivo 'fede' "),
-            subtitle: Text("40°"),
-            leading: const Icon(Icons.devices),
-          ),
-          Divider(),
-          ListTile(
-            title: Text("Dispositivo 'pato' "),
-            subtitle: Text("50°"),
-            leading: const Icon(Icons.devices),
-          ),
-          Expanded(
-            child: Center(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  const Text(
-                    'Toca el ',
-                  ),
-                  const Icon(Icons.add),
-                  const Text(
-                    ' para agregar un dispositivo',
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
+      body: Center(
+        child: FutureBuilder<List<Device>>(
+          future: modelsRepository.getDevices(),
+          builder: (_,snapshot){
+            if (snapshot.hasData){
+              if (snapshot.data!.length != 0) {
+                List<Device> devices = snapshot.data!;
+                return ListView.builder(
+                  itemBuilder: (context, index) {
+                    Device device = devices[index];
+
+
+                    return ListTile(
+                      leading: Icon(
+                          IconData(0xe904, fontFamily: 'signal_wifi'),size: 30,),
+                      title: Text('${device.name!}'),
+                      trailing: Icon(Icons.edit) ,
+                      selected: false,
+                      onTap: (){
+
+                      },
+
+                    );
+                  },
+                  itemCount: devices.length,
+                );
+              }else{
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text("Toca el "),
+                    const Icon(Icons.add),
+                    Text(" para añadir dispositivos.")
+                  ],
+                );
+              }
+            }
+            return CircularProgressIndicator();
+          },
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: (){

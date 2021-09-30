@@ -1,28 +1,24 @@
 class User {
   int id;
-  String username;
-  String token;
-  String theme;
+  String typeTemp;
+  
 
 
   User(
       {this.id = 0,
-      this.username = "",
-      this.token = "",
-      this.theme = "",});
+      this.typeTemp = "c",
+    });
 
   factory User.fromDatabaseJson(Map<String, dynamic> data) => User(
     id: data['id'],
-    username: data['username'],
-    token: data['token'],
-    theme: data['theme'],
+    typeTemp: data['type_temp'],
+    
   );
 
   Map<String, dynamic> toDatabaseJson() => {
     "id": this.id,
-    "username": this.username,
-    "token": this.token,
-    "theme": this.theme,
+    "type_temp": this.typeTemp,
+  
   };
 
 }

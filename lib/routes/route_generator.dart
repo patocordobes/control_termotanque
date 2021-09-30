@@ -25,7 +25,7 @@ class RouteGenerator {
       case '/settings':
         return MaterialPageRoute(builder: (_) => SettingsPage(title: "Configuracion",));
       default:
-        return MaterialPageRoute(builder: (_) => SearchDevicesPage(title: "Buscar Dispositivos",));
+        return MaterialPageRoute(builder: (_) => DevicesPage(title: "Dispositivos",));
     }
   }
 }
