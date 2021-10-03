@@ -46,7 +46,7 @@ class ModelsRepository {
     List<Map<String, dynamic>> listMap = await deviceDao.selectDevices();
     List<Device> devices = [];
     listMap.forEach((device){
-      devices.add(Device.fromJson(device));
+      devices.add(Device.fromDatabaseJson(device));
     });
     return devices;
   }

@@ -49,8 +49,9 @@ class _DevicesPageState extends State<DevicesPage> {
 
                     return ListTile(
                       leading: Icon(
-                          IconData(0xe904, fontFamily: 'signal_wifi'),size: 30,),
+                        IconData(59653, fontFamily: 'signal_wifi'),size: 30,),
                       title: Text('${device.name!}'),
+                      subtitle: Text("MAC: ${device.mac}"),
                       trailing: Icon(Icons.edit) ,
                       selected: false,
                       onTap: (){
@@ -71,6 +72,8 @@ class _DevicesPageState extends State<DevicesPage> {
                   ],
                 );
               }
+            }else if (snapshot.hasError){
+              return Text("error ${snapshot.error}");
             }
             return CircularProgressIndicator();
           },

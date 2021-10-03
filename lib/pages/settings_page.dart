@@ -38,14 +38,23 @@ class _SettingsPageState extends State<SettingsPage> {
               },
             ),
             ListTile(
-              title: Text("Notificaciones"),
-              subtitle: Text("Tonos de mensajes, Cuando mostrar notificacion"),
-              leading: Icon(Icons.notifications_rounded),
-            ),
-            ListTile(
               title: Text("Ayuda"),
               subtitle: Text("Centro de ayuda, Reportar bugs"),
               leading: Icon(Icons.help_outline),
+            ),
+            ListTile(
+              title: Text("Informacion de la aplicacion"),
+              leading: Icon(Icons.info_outline),
+              onTap: (){
+                showDialog<void>(
+                context: context,
+
+                // false = user must tap button, true = tap outside dialog
+                builder: (BuildContext dialogContext) {
+                  return AboutDialog();
+                },
+              );
+            },
             ),
           ],
         )

@@ -6,6 +6,9 @@
     <uses-feature android:name="android.hardware.wifi" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.INTERNET"/>
+    
+
    <application
         android:label="control_termotanque"
         android:icon="@mipmap/ic_launcher">

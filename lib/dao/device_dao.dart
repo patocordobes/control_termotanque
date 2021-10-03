@@ -29,11 +29,12 @@ class DeviceDao {
     final db = await dbProvider.database;
     try {
       List<Map<String,dynamic>> devices = await db
-          .query(userTable);
+          .query(deviceTable);
       
 
       return devices;
     } catch (error) {
+      print(error);
       throw Exception("Error selecting devices.");
 
     }

@@ -26,33 +26,66 @@ class DatabaseProvider {
 
     var database = await openDatabase(
       path,
-      version: 1,
-      onCreate: initDB,
+      version: 4,
       onUpgrade: onUpgrade,
+      onCreate: initDB,
     );
     return database;
   }
 
-  void onUpgrade(
+  Future<void> onUpgrade(
     Database database,
     int oldVersion,
     int newVersion,
-  ){
-    if (newVersion > oldVersion){}
+  ) async {
+    if (newVersion > oldVersion) {
+      await database.execute(
+          "DROP TABLE IF EXISTS $userTable");
+
+      await database.execute(
+          "DROP TABLE IF EXISTS $deviceTable");
+    }
+    await database.execute(
+        "CREATE TABLE $userTable ("
+            "id INTEGER PRIMARY KEY, "
+            "type_temp BOOLEAN "
+            ")"
+    );
+
+    await database.execute(
+        "CREATE TABLE $deviceTable ("
+            "id INTEGER PRIMARY KEY autoincrement, "
+            "mac TEXT, "
+            "name TEXT, "
+            "connected_wifi BOOLEAN, "
+            "ssid TEXT, "
+            "brand TEXT, "
+            "capacity INTEGER, "
+            "amount_tubes INTEGER, "
+            "watts DOUBLE "
+            ")"
+    );
   }
 
   void initDB(Database database, int version) async {
     await database.execute(
       "CREATE TABLE $userTable ("
       "id INTEGER PRIMARY KEY, "
-      "type_temp bool "
+      "type_temp BOOLEAN "
       ")"
     );
     
     await database.execute(
       "CREATE TABLE $deviceTable ("
-      "mac TEXT PRIMARY KEY, "
-      "type_temp bool "
+      "id INTEGER PRIMARY KEY autoincrement, "
+      "mac TEXT, "
+      "name TEXT, "
+      "connected_wifi BOOLEAN, "
+      "ssid TEXT, "
+      "brand TEXT, "
+      "capacity INTEGER, "
+      "amount_tubes INTEGER, "
+      "watts DOUBLE "
       ")"
     );
   }
