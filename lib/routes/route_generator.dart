@@ -1,4 +1,5 @@
 import 'package:control_termotanque/models/device_model.dart';
+import 'package:control_termotanque/pages/historial_page.dart';
 import 'package:control_termotanque/pages/pages.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -13,25 +14,142 @@ class RouteGenerator {
       case '/devices':
         return MaterialPageRoute(builder: (_) => DevicesPage(title: "Dispositivos",));
       case '/search_devices':
-        return MaterialPageRoute(builder: (_) => SearchDevicesPage(title: "Buscar Dispositivos",));
+        return PageRouteBuilder(
+          transitionDuration: Duration(milliseconds: 1000),
+          pageBuilder: (context, animation, secondaryAnimation) => const SearchDevicesPage(title: "Buscar Dispositivos",),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            const begin = Offset(0.0, 1.0);
+            const end =  Offset(0.0, 0.0);
+            const curve = Curves.bounceOut;
+            var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+            return SlideTransition(
+                position: animation.drive(tween),
+                child: child,
+            );
+          },
+        );
+
       case '/choose_wifi':
         Map<String, dynamic> map = args as Map<String, dynamic>;
         print(map);
-        Device? device;
-        if (map['device'] != null) {
-          device = Device.fromJson(map['device']);
+        bool create = true;
+
+        if (map['create'] != null) {
+          create = map['create'];
         }
-        return MaterialPageRoute(builder: (_) => ChooseWifiPage(title: "Elige el WiFi",device: device!));
+        return PageRouteBuilder(
+          transitionDuration: Duration(milliseconds: 500),
+          pageBuilder: (context, animation, secondaryAnimation) => ChooseWifiPage(create: create),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            const begin = Offset(1.0, 0.0);
+            const end =  Offset(0.0, 0.0);
+            const curve = Curves.ease;
+            var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+
+            return SlideTransition(
+              position: animation.drive(tween),
+              child: child,
+            );
+          },
+        );
       case "/device_configuration": 
+        Map<String, dynamic> map = args as Map<String, dynamic>;
+        print(map);
+        bool create = true;
+        if (map['create'] != null) {
+          create = map['create'];
+        }
+        return PageRouteBuilder(
+          transitionDuration: Duration(milliseconds: 700),
+          pageBuilder: (context, animation, secondaryAnimation) => DeviceSettingsPage(create:create),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            const begin = Offset(1.0, 0.0);
+            const end =  Offset(0.0, 0.0);
+            const curve = Curves.ease;
+
+            var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+            return SlideTransition(
+              position: animation.drive(tween),
+              child: child,
+            );
+          },
+        );
+      case "/device":
+        Map<String, dynamic> map = args as Map<String, dynamic>;
+        print(map);
+
+
+
+        return PageRouteBuilder(
+          transitionDuration: Duration(milliseconds: 700),
+          pageBuilder: (context, animation, secondaryAnimation) => DevicePage(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            const begin = Offset(1.0, 0.0);
+            const end =  Offset(0.0, 0.0);
+            const curve = Curves.ease;
+
+            var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+            return SlideTransition(
+              position: animation.drive(tween),
+              child: child,
+            );
+          },
+        );
+      case "/edit_device":
+
+        return PageRouteBuilder(
+          transitionDuration: Duration(milliseconds: 700),
+          pageBuilder: (context, animation, secondaryAnimation) => EditDevicePage(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            const begin = Offset(1.0, 0.0);
+            const end =  Offset(0.0, 0.0);
+            const curve = Curves.ease;
+
+            var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+            return SlideTransition(
+              position: animation.drive(tween),
+              child: child,
+            );
+          },
+        );
+      case '/settings':
+        return PageRouteBuilder(
+          transitionDuration: Duration(milliseconds: 1000),
+          pageBuilder: (context, animation, secondaryAnimation) => const SettingsPage(title: "Configuracion"),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            const begin = Offset(0.0, -1.0);
+            const end =  Offset(0.0, 0.0);
+            const curve = Curves.bounceOut;
+            var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+
+            return SlideTransition(
+              position: animation.drive(tween),
+              child: child,
+            );
+          },
+        );
+      case '/historical':
         Map<String, dynamic> map = args as Map<String, dynamic>;
         print(map);
         Device? device;
         if (map['device'] != null) {
-          device = Device.fromJson(map['device']);
+          device = Device.fromDatabaseJson(map['device']);
         }
-        return MaterialPageRoute(builder: (_) => DeviceConfigrationPage(title: "Configuracion del dispositivo",device: device!));
-      case '/settings':
-        return MaterialPageRoute(builder: (_) => SettingsPage(title: "Configuracion",));
+        return PageRouteBuilder(
+          transitionDuration: Duration(milliseconds: 1000),
+          pageBuilder: (context, animation, secondaryAnimation) => OrdinalComboBarLineChart(device: device!, title: 'Historial', animate: true,),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            const begin = Offset(0.0, -1.0);
+            const end =  Offset(0.0, 0.0);
+            const curve = Curves.bounceOut;
+            var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+
+            return SlideTransition(
+              position: animation.drive(tween),
+              child: child,
+            );
+          },
+        );
       default:
         return MaterialPageRoute(builder: (_) => DevicesPage(title: "Dispositivos",));
     }

@@ -6,6 +6,9 @@ CustomTheme currentTheme = CustomTheme();
 class CustomTheme extends ChangeNotifier{
   static ThemeData get lightTheme {
     return ThemeData(
+      appBarTheme: AppBarTheme(
+
+      ),
       primaryColor: Color(0xFF37B5E8),
       accentColor: Color(0xFF8BBA1E),
       brightness: Brightness.light,

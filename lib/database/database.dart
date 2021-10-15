@@ -26,7 +26,7 @@ class DatabaseProvider {
 
     var database = await openDatabase(
       path,
-      version: 4,
+      version: 6,
       onUpgrade: onUpgrade,
       onCreate: initDB,
     );
@@ -48,21 +48,32 @@ class DatabaseProvider {
     await database.execute(
         "CREATE TABLE $userTable ("
             "id INTEGER PRIMARY KEY, "
-            "type_temp BOOLEAN "
+            "celsius BOOLEAN "
             ")"
     );
-
     await database.execute(
         "CREATE TABLE $deviceTable ("
             "id INTEGER PRIMARY KEY autoincrement, "
             "mac TEXT, "
+            "address TEXT, "
             "name TEXT, "
             "connected_wifi BOOLEAN, "
             "ssid TEXT, "
             "brand TEXT, "
             "capacity INTEGER, "
             "amount_tubes INTEGER, "
-            "watts DOUBLE "
+            "watts DOUBLE, "
+            "prog0 BOOLEAN,"
+            "temp0 INTEGER, "
+            "prog1 BOOLEAN,"
+            "temp1 INTEGER, "
+            "time1 TIME, "
+            "prog2 BOOLEAN,"
+            "temp2 INTEGER, "
+            "time2 TIME, "
+            "prog3 BOOLEAN,"
+            "temp3 INTEGER, "
+            "time3 TIME "
             ")"
     );
   }
@@ -71,22 +82,39 @@ class DatabaseProvider {
     await database.execute(
       "CREATE TABLE $userTable ("
       "id INTEGER PRIMARY KEY, "
-      "type_temp BOOLEAN "
+      "celsius BOOLEAN "
       ")"
     );
-    
     await database.execute(
-      "CREATE TABLE $deviceTable ("
-      "id INTEGER PRIMARY KEY autoincrement, "
-      "mac TEXT, "
-      "name TEXT, "
-      "connected_wifi BOOLEAN, "
-      "ssid TEXT, "
-      "brand TEXT, "
-      "capacity INTEGER, "
-      "amount_tubes INTEGER, "
-      "watts DOUBLE "
-      ")"
+      "INSERT INTO $userTable (id,celsius)VALUES("
+            "0, "
+            "1"
+            ")"
+    );
+    await database.execute(
+        "CREATE TABLE $deviceTable ("
+            "id INTEGER PRIMARY KEY autoincrement, "
+            "mac TEXT, "
+            "address TEXT, "
+            "name TEXT, "
+            "connected_wifi BOOLEAN, "
+            "ssid TEXT, "
+            "brand TEXT, "
+            "capacity INTEGER, "
+            "amount_tubes INTEGER, "
+            "watts DOUBLE, "
+            "prog0 BOOLEAN,"
+            "temp0 INTEGER, "
+            "prog1 BOOLEAN,"
+            "temp1 INTEGER, "
+            "time1 TIME, "
+            "prog2 BOOLEAN,"
+            "temp2 INTEGER, "
+            "time2 TIME, "
+            "prog3 BOOLEAN,"
+            "temp3 INTEGER, "
+            "time3 TIME "
+            ")"
     );
   }
 }

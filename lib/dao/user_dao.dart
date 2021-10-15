@@ -11,12 +11,6 @@ class UserDao {
     var result = db.insert(userTable, user.toDatabaseJson(),conflictAlgorithm: ConflictAlgorithm.replace);
     return result;
   }
-  Future<int> updateUser(User user) async {
-    final db = await dbProvider.database;
-
-    var result = db.insert(userTable, user.toDatabaseJson(),conflictAlgorithm: ConflictAlgorithm.replace);
-    return result;
-  }
 
   Future<int> deleteUser(int? id) async {
     final db = await dbProvider.database;
@@ -40,7 +34,7 @@ class UserDao {
       return false;
     }
   }
-  Future<Map<String,dynamic>> selectUser(int? id) async {
+  Future<Map<String,dynamic>> selectUser() async {
     final db = await dbProvider.database;
     try {
       List<Map<String,dynamic>> users = await db

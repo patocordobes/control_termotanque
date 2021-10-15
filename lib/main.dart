@@ -1,16 +1,32 @@
-
-
+import 'package:control_termotanque/models/message_manager_model.dart';
+import 'package:control_termotanque/repository/models_repository.dart';
 import 'package:control_termotanque/routes/route_generator.dart';
 import 'package:control_termotanque/themes/themes.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'package:theme_mode_handler/theme_mode_handler.dart';
 
-void main()  {
-  WidgetsFlutterBinding.ensureInitialized();
-  SystemChrome.setPreferredOrientations(
-      [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
-  runApp(MyApp());
+import 'models/auth/user_model.dart';
+
+void main() async {
+  //WidgetsFlutterBinding.ensureInitialized();
+  //SystemChrome.setPreferredOrientations(
+ //     [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
+  ModelsRepository modelsRepository = ModelsRepository();
+  try {
+    await modelsRepository.getUser;
+  }catch (e){
+    modelsRepository.createUser(user: User());
+  }
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => MessageManager()),
+
+      ],
+      child: MyApp(),
+    )
+  );
 }
 
 class MyApp extends StatefulWidget {
@@ -33,12 +49,12 @@ class _MyApp extends State<MyApp> {
       ),
       builder: (ThemeMode themeMode){
         return MaterialApp(
+          debugShowCheckedModeBanner: false,
           title: 'Control termotanque',
           theme: CustomTheme.lightTheme,
           highContrastTheme: CustomTheme.lightTheme,
           darkTheme: CustomTheme.darkTheme,
           themeMode: themeMode,
-          initialRoute: "/devices",
           onGenerateRoute: RouteGenerator.generateRoute,
         );
       },

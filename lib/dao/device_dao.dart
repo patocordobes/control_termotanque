@@ -8,7 +8,7 @@ class DeviceDao {
   Future<int> createDevice(Device device) async {
     final db = await dbProvider.database;
 
-    var result = db.insert(deviceTable, device.toDatabaseJson(),conflictAlgorithm: ConflictAlgorithm.replace);
+    var result = db.insert(deviceTable, device.toCreateDatabaseJson(),conflictAlgorithm: ConflictAlgorithm.replace);
     return result;
   }
   Future<int> updateDevice(Device device) async {
@@ -18,10 +18,10 @@ class DeviceDao {
     return result;
   }
 
-  Future<int> deleteDevice(String? mac) async {
+  Future<int> deleteDevice(Device device) async {
     final db = await dbProvider.database;
     var result = await db
-        .delete(deviceTable, where: "mac = ?", whereArgs: [mac]);
+        .delete(deviceTable, where: "id = ?", whereArgs: [device.id]);
     return result;
   }
 

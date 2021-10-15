@@ -1,24 +1,26 @@
-class User {
-  int id;
-  String typeTemp;
-  
+import 'package:flutter/widgets.dart';
 
+class User with ChangeNotifier {
+  int id;
+  bool celsius;
 
   User(
       {this.id = 0,
-      this.typeTemp = "c",
+      this.celsius = true,
     });
-
+  set setCelcius(bool celsius) {
+    this.celsius = celsius;
+    notifyListeners();
+  }
   factory User.fromDatabaseJson(Map<String, dynamic> data) => User(
     id: data['id'],
-    typeTemp: data['type_temp'],
+    celsius: (data['celsius'] == 1)? true:false,
     
   );
 
   Map<String, dynamic> toDatabaseJson() => {
     "id": this.id,
-    "type_temp": this.typeTemp,
-  
+    "celsius": (this.celsius)? 1: 0,
   };
 
 }
