@@ -10,7 +10,8 @@
     
 
    <application
-        android:label="control_termotanque"
+        android:label="Control Termotanque"
+        android:usesCleartextTraffic="true"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"

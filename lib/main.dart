@@ -12,12 +12,7 @@ void main() async {
   //WidgetsFlutterBinding.ensureInitialized();
   //SystemChrome.setPreferredOrientations(
  //     [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
-  ModelsRepository modelsRepository = ModelsRepository();
-  try {
-    await modelsRepository.getUser;
-  }catch (e){
-    modelsRepository.createUser(user: User());
-  }
+
   runApp(
     MultiProvider(
       providers: [
@@ -27,6 +22,12 @@ void main() async {
       child: MyApp(),
     )
   );
+  ModelsRepository modelsRepository = ModelsRepository();
+  try {
+    await modelsRepository.getUser;
+  }catch (e){
+    modelsRepository.createUser(user: User());
+  }
 }
 
 class MyApp extends StatefulWidget {

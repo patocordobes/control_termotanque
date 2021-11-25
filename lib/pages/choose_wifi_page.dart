@@ -22,11 +22,16 @@ class _ChooseWifiPageState extends State<ChooseWifiPage> {
   late Device device;
   late MessageManager messageManager;
   late Timer timer;
+  late Timer timerGetting;
   ModelsRepository modelsRepository = ModelsRepository();
+  WifiConfiguration wifiConfiguration = WifiConfiguration();
+  late Timer timerRedirect ;
 
   @override
   void initState() {
     super.initState();
+    timerGetting = Timer.periodic(Duration(seconds:40), (timer) { });
+    timerRedirect = Timer.periodic(Duration(seconds:40), (timer) { });
     messageManager = context.read<MessageManager>();
     if (widget.create){
       device = messageManager.newDevice;
@@ -34,12 +39,12 @@ class _ChooseWifiPageState extends State<ChooseWifiPage> {
       device = messageManager.selectedDevice;
     }
     refresh();
-    timer = Timer.periodic(Duration(seconds:5), (timer) async  {
+    timer = Timer.periodic(Duration(milliseconds:1), (timer) async  {
       if (device.connectionStatus != ConnectionStatus.disconnected) {
         if (device.connectionStatus != ConnectionStatus.local && device.connectionStatus != ConnectionStatus.updating) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-                content: Text('Solo puedes editar esto en local'),backgroundColor:Theme.of(context).errorColor),
+                content: Text('Solo puedes editar la red del dispositivo localmente'),backgroundColor:Theme.of(context).errorColor),
           );
           Navigator.of(context).pop();
         }
@@ -61,57 +66,38 @@ class _ChooseWifiPageState extends State<ChooseWifiPage> {
   }
   @override
   void dispose() {
+    timerRedirect.cancel();
     timer.cancel();
     super.dispose();
 
   }
   void refresh() async {
-    await Future.delayed(Duration(seconds:1));
+    await Future.delayed(Duration(milliseconds:1));
+    wifiConfiguration = WifiConfiguration();
     if (device.connectionStatus != ConnectionStatus.disconnected) {
-      if (device.connectionStatus != ConnectionStatus.local && device.connectionStatus != ConnectionStatus.updating) {
-
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text('Solo puedes editar esto en local'),backgroundColor:Theme.of(context).errorColor),
-        );
-        Navigator.of(context).pop();
-      }else{
+      if (device.connectionStatus == ConnectionStatus.local ) {
         device.deviceStatus = DeviceStatus.updating;
+        device.wifiStatus = WifiStatus.getting;
         Map <String, dynamic> map = {
-          "t": "devices/" + device.mac.toUpperCase().substring(3),
-          "a": "getw",
-        };
-        if (widget.create){
-          messageManager.sendForNew(jsonEncode(map));
-        }else {
-          if (device.connectionStatus == ConnectionStatus.local) {
-            messageManager.send(jsonEncode(map), true);
-          } else {
-            messageManager.send(jsonEncode(map), false);
-          }
-        }
-        await Future.delayed(Duration(seconds: 5));
-        map = {
           "t": "devices/" + device.mac.toUpperCase().substring(3),
           "a": "getcw",
         };
-        if (widget.create){
-          messageManager.sendForNew(jsonEncode(map));
-        }else {
-          if (device.connectionStatus == ConnectionStatus.local) {
+        messageManager.send(jsonEncode(map), true);
+        timerGetting.cancel();
+        timerGetting = Timer.periodic(Duration(milliseconds:1), (timer) async  {
+          if (device.deviceStatus == DeviceStatus.updated){
+            timerGetting.cancel();
+            device.deviceStatus = DeviceStatus.updating;
+            device.wifiStatus = WifiStatus.scanning;
+            map = {
+              "t": "devices/" + device.mac.toUpperCase().substring(3),
+              "a": "getw",
+            };
             messageManager.send(jsonEncode(map), true);
-          } else {
-            messageManager.send(jsonEncode(map), false);
           }
-        }
+        });
+
       }
-    }else{
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text('Se há perdido la coñexión con el dispositivo!!!.'),backgroundColor:Theme.of(context).errorColor),
-      );
-      Navigator.of(context).pop();
     }
   }
   @override
@@ -128,57 +114,89 @@ class _ChooseWifiPageState extends State<ChooseWifiPage> {
       isLoaded = true;
     }
     return Scaffold(
-      body: NestedScrollView(
-        headerSliverBuilder: (BuildContext context, bool isscrolled){
-          return <Widget>[
-            SliverAppBar(
-              title: Text('Red de "${device.name }" '),
-              pinned:false,
-              floating: true,
-              forceElevated: isscrolled,
-              actions: [
-                IconButton(icon: Icon(Icons.settings), onPressed: (){
-                  Navigator.of(context).pushNamed("/settings");
-                }),
-                IconButton(icon: Icon(Icons.refresh), onPressed: (){
-                  refresh();
-                })
-              ],
-            ),
-          ];
-        },
-        body: backdropFilter(Container(
-          child: SingleChildScrollView(
-            child: Column(
-              children: getList()
-            ),
-          ),
-        ),)
+      appBar: AppBar(
+        title: Text('Red del dispositivo '),
+        actions: [
+          IconButton(icon: Icon(Icons.settings), onPressed: (){
+            Navigator.of(context).pushNamed("/settings");
+          }),
+          IconButton(icon: Icon(Icons.refresh), onPressed: (){
+            refresh();
+          })
+        ],
       ),
+      body: SingleChildScrollView(
+        child: Column(
+            children: getList()
+        ),
+      )
     );
   }
   List<Widget> getList(){
     List<Widget> list = [];
+    list.add(
+      Container(
+        color:Theme.of(context).primaryColor,
+        child: ListTile(
+          leading: Icon(
+            IconData(59653, fontFamily: 'signal_wifi'), size: 30,),
+          title: Text('${device.name}'),
+          subtitle: Text(
+              (device.connectionStatus == ConnectionStatus.connecting)
+                  ? "Conectando..."
+                  : (device.connectionStatus ==
+                  ConnectionStatus.disconnected)
+                  ? "Desconectado"
+                  : (device.connectionStatus == ConnectionStatus.local)
+                  ? "Conectado localmente"
+                  : (device.connectionStatus == ConnectionStatus.updating)?"Sincronizando...":"Conectado a traves del servidor"),
+        )
+      ),
+    );
+
     if (device.deviceStatus == DeviceStatus.updating){
       list.add(LinearProgressIndicator());
-    }else if (device.connectedToWiFi && device.currentWifiNetwork != null){
+    }
+    list.add(
+        ListTile(
+          leading: (device.wifiStatus == WifiStatus.getting || device.wifiStatus == WifiStatus.connecting)?Container(child: CircularProgressIndicator(),height:16,width: 16,):Text(""),
+          title: Text('Red conectada actualmente',style: TextStyle(color: Theme.of(context).primaryColor),),
+        )
+    );
+
+    if (device.connectedToWiFi && device.currentWifiNetwork != null){
       list.add(
         ListTile(
           leading: Icon(
-            IconData(59648 + (int.parse(device.currentWifiNetwork!.signalLevel)), fontFamily: 'signal_wifi'),size: 30,),
+            IconData(59648 + (int.parse(device.currentWifiNetwork!.signalLevel!)), fontFamily: 'signal_wifi'),size: 30,),
           title: Text('${device.currentWifiNetwork!.ssid!}'),
           subtitle: Text('Conectada'),
-          trailing: IconButton(icon: Icon(Icons.settings,color: Theme.of(context).accentColor,),onPressed: (){}),
-
+          trailing: IconButton(icon: Icon(Icons.settings,color: Theme.of(context).accentColor,),onPressed: (){
+          }),
         )
       );
-      list.add(Divider());
+    }else{
+      list.add(
+          ListTile(
+            leading: Icon(Icons.signal_wifi_off),
+            title: Text('Red desconectada'),
+            subtitle: Text('Desconectada'),
+          )
+      );
     }
+    list.add(Divider());
+    list.add(
+        ListTile(
+          leading: (device.wifiStatus == WifiStatus.getting || device.wifiStatus == WifiStatus.connecting || device.wifiStatus == WifiStatus.scanning)?Container(child: CircularProgressIndicator(),height:16,width: 16,):Text(""),
+          title: Text('Redes que ve el dispositivo',style: TextStyle(color: Theme.of(context).primaryColor),),
+        )
+    );
+
     if (device.wifiNetworkList.isNotEmpty) {
       device.wifiNetworkList.forEach((wifiNetwork) {
         if (device.ssid != wifiNetwork.ssid) {
           int signal = 59648 +
-              (int.parse(wifiNetwork.signalLevel));
+              (int.parse(wifiNetwork.signalLevel!));
           ListTile listTile = ListTile(
             leading: Icon(
               IconData(signal, fontFamily: 'signal_wifi'), size: 30,),
@@ -190,9 +208,10 @@ class _ChooseWifiPageState extends State<ChooseWifiPage> {
             onTap: () async {
               String? password = await showDialog(context: context,
                   builder: (builder) =>
-                      EnterPasswordDialog(title: wifiNetwork.ssid));
+                      EnterPasswordDialog(title: wifiNetwork.ssid!));
               if (password != null) {
                 connectToWiFi(wifiNetwork, password);
+                await Future.delayed(Duration(seconds:15));
                 refresh();
               }
             },
@@ -202,7 +221,12 @@ class _ChooseWifiPageState extends State<ChooseWifiPage> {
       });
 
     }else{
-      list.add(Text('No se encontraron redes'));
+      list.add(
+          ListTile(
+            leading: Text(""),
+            title: Text('No se encontraron redes'),
+          )
+      );
     }
     list.add(Divider());
     list.add(getButtons());
@@ -213,38 +237,74 @@ class _ChooseWifiPageState extends State<ChooseWifiPage> {
       return Align(
         alignment: Alignment.bottomRight,
         child: Container(
-          margin: EdgeInsets.only(right: 16),
+          margin: EdgeInsets.only(right: 16,left: 16),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text("Paso 1 de 2"),
+                )
+              ),
               TextButton(
                   child: Text(
-                      "SALTAR"
+                      "SALTAR PASO 1"
                   ),
-                  onPressed: () {
+                  onPressed: (device.wifiStatus == WifiStatus.connected || device.wifiStatus == WifiStatus.disconnected)?  () async {
                     device.connectedToWiFi = false;
                     device.ssid = "";
+                    device.deviceStatus = DeviceStatus.updating;
+                    Map <String, dynamic> map = {
+                      "t": "devices/" + device.mac.toUpperCase().substring(3),
+                      "a": "gets",
+                    };
+                    messageManager.send(jsonEncode(map), true);
+                    map = {
+                      "t": "devices/" + device.mac.toUpperCase().substring(3),
+                      "a": "get",
+                    };
+
+                    messageManager.send(jsonEncode(map), true);
+                    await Future.delayed(Duration(milliseconds: 1000));
                     Navigator.of(context).pushNamed("/device_configuration",
-                        arguments: {"device": device.toDatabaseJson()});
-                  }
+                        arguments: {
+                          "create": true
+                        });
+                  } : null
               ),
               ElevatedButton(
                   child: Text(
                       "SIGUIENTE"
                   ),
-                  onPressed: () {
-                    if (device.connectedToWiFi) {
-                      device.ssid = device.currentWifiNetwork!.ssid;
-                      Navigator.of(context).pushNamed("/device_configuration",
-                          arguments: {
-                            "device": device.toDatabaseJson()
-                          });
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(
-                            'Debe conectar el dispositivo a una red para continuar. ')),
-                      );
-                    }
+                  onPressed: (device.wifiStatus != WifiStatus.connected || device.deviceStatus == DeviceStatus.updating)? null : () async {
+                    device.ssid = device.currentWifiNetwork!.ssid!;
+                    device.deviceStatus = DeviceStatus.updating;
+                    Map <String, dynamic> map = {
+                      "t": "devices/" + device.mac.toUpperCase().substring(3),
+                      "a": "gets",
+                    };
+                    messageManager.send(jsonEncode(map), true);
+                    device.deviceStatus = DeviceStatus.updating;
+                    map = {
+                      "t": "devices/" + device.mac.toUpperCase().substring(3),
+                      "a": "get",
+                    };
+                    messageManager.send(jsonEncode(map), true);
+                    timerRedirect.cancel();
+                    timerRedirect = Timer.periodic(Duration(milliseconds:1), (timer) {
+                      if (device.deviceStatus == DeviceStatus.updated){
+                        timerRedirect.cancel();
+                        Navigator.of(context).pushNamed("/device_configuration",
+                            arguments: {
+                              "create": true
+                            });
+                      }
+                    });
+                    await Future.delayed(Duration(milliseconds: 3000),(){
+                      timerRedirect.cancel();
+                    });
+
                   }
               ),
             ],
@@ -291,6 +351,8 @@ class _ChooseWifiPageState extends State<ChooseWifiPage> {
 
   Future<void> connectToWiFi(WifiNetwork network, String password) async {
     device.deviceStatus = DeviceStatus.updating;
+    device.wifiStatus = WifiStatus.connecting;
+    device.connectionStatus = ConnectionStatus.updating;
     Map <String, dynamic> map = {
       "t":"devices/" + device.mac.toUpperCase().substring(3),
       "a":"connectwifi",
@@ -299,15 +361,7 @@ class _ChooseWifiPageState extends State<ChooseWifiPage> {
         "pass": password
       }
     };
-    if (widget.create){
-      messageManager.sendForNew(jsonEncode(map));
-    }else {
-      if (device.connectionStatus == ConnectionStatus.local) {
-        messageManager.send(jsonEncode(map), true);
-      } else {
-        messageManager.send(jsonEncode(map), false);
-      }
-    }
+    messageManager.send(jsonEncode(map), true);
   }
 
   Future<void> deleteWiFi() async {
@@ -315,15 +369,7 @@ class _ChooseWifiPageState extends State<ChooseWifiPage> {
       "t":"devices/" + device.mac.toUpperCase().substring(3),
       "a":"deletew"
     };
-    if (widget.create){
-      messageManager.sendForNew(jsonEncode(map));
-    }else {
-      if (device.connectionStatus == ConnectionStatus.local) {
-        messageManager.send(jsonEncode(map), true);
-      } else {
-        messageManager.send(jsonEncode(map), false);
-      }
-    }
+    messageManager.send(jsonEncode(map), true);
   }
 }
 

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:control_termotanque/models/models.dart';
 import 'package:control_termotanque/repository/models_repository.dart';
 import 'package:wifi_configuration_2/wifi_configuration_2.dart';
 import 'dart:async';
@@ -7,14 +8,33 @@ enum ConnectionStatus {
   local,
   mqtt,
   updating,
+  connecting,
   disconnected
 }
 enum DeviceStatus{
   updating,
   updated
 }
+enum SoftwareStatus{
+  upgrading,
+  upgraded,
+  outdated
+}
+enum WifiStatus{
+  connected,
+  connecting,
+  disconnecting,
+  disconnected,
+  scanning,
+  getting
+}
+enum HistoricalStatus{
+  done,
+  updating,
+}
 class Device {
   int? id;
+  String version = "1.1.1";
   String mac;
   bool resistance = false;
   int temperature = 0;
@@ -37,18 +57,26 @@ class Device {
   int amountTubes = 0;
   double watts = 0;
   String address;
-
+  
+  
+  bool serverConnected = false;
   ModelsRepository modelsRepository = ModelsRepository();
-
+  SoftwareStatus softwareStatus = SoftwareStatus.upgraded;
   ConnectionStatus connectionStatus = ConnectionStatus.disconnected;
   DeviceStatus deviceStatus = DeviceStatus.updated;
+  WifiStatus wifiStatus = WifiStatus.disconnected;
+  HistoricalStatus historicalStatus = HistoricalStatus.done;
   late Timer updateDeviceConnection;
   int numberOfDisconnections = 3;
   WifiNetwork? currentWifiNetwork;
   List<WifiNetwork> wifiNetworkList = [];
+  List<Point> points = [];
+
+  String temps = "";
 
   Device({
     this.id,
+    this.version = "1.1.1",
     required this.mac,
     this.address = "",
     this.name = "",
@@ -70,7 +98,24 @@ class Device {
     this.temp3 = 0,
     this.time3 = "00:00",
 
-  });
+  }){
+    if (version != "1.1.9") {
+      softwareStatus = SoftwareStatus.outdated;
+    }else{
+      softwareStatus = SoftwareStatus.upgraded;
+    }
+    if (connectedToWiFi){
+      wifiStatus =WifiStatus.connected;
+    }else{
+      wifiStatus =WifiStatus.disconnected;
+    }
+    for(int i = 0; i < 24; i++){
+      DateTime now = DateTime.now();
+      points.add(Point(
+          dateTime: now,
+          device: this));
+    }
+  }
 
   Future<bool> isConnectedLocally() async {
     bool connected = false;
@@ -91,7 +136,7 @@ class Device {
     return connected;
   }
 
-  void listen(String message, {String address= ""}) async {
+  void listen(String message, {String address= "",required bool local}) async {
 
     try {
       Map <String, dynamic> map = json.decode(message);
@@ -99,14 +144,42 @@ class Device {
         deviceStatus = DeviceStatus.updated;
         print("json: $map");
         switch (map["a"]) {
+          case "connectwifi":
+            if (map["status"] != "error"){
+              print("no se conecto");
+            }
+            break;
+          case "switch":
+            resistance = (map["d"]["o"] == 1)? true : false;
+            break;
+          case "geth":
+            //historicalStatus = HistoricalStatus.done;
+            break;
+          case "getip":
+            print("Ip: ${map["d"]["ip"]}");
+            this.address = map["d"]["ip"] ;
+            break;
+          case "getmqtt":
+            print("Mqtt: ${map["d"]["m"]}");
+            serverConnected = (map["d"]["m"] == 1)? true : false;
+            break;
           case "getv":
             print("Version: ${map["d"]["v"]}");
+            this.version = map["d"]["v"];
+            if (version != "1.1.9") {
+              softwareStatus = SoftwareStatus.outdated;
+            }else{
+              softwareStatus = SoftwareStatus.upgraded;
+            }
             break;
           case "sets":
             brand = map["d"]["m"];
             capacity = map["d"]["c"];
             amountTubes = map["d"]["tb"];
             watts = double.parse("${map["d"]["w"]}");
+            break;
+          case "setota":
+            softwareStatus = SoftwareStatus.upgrading;
             break;
           case "gets":
             brand = map["d"]["m"];
@@ -141,26 +214,34 @@ class Device {
                   signalLevel: quality.toInt().toString(),
                   ssid: map["d"]["s"].toString());
               connectedToWiFi = true;
-              ssid = currentWifiNetwork!.ssid;
+              ssid = currentWifiNetwork!.ssid!;
+              wifiStatus = WifiStatus.connected;
             } else {
               currentWifiNetwork = null;
-
               connectedToWiFi = false;
+              wifiStatus = WifiStatus.disconnected;
             }
             break;
           case "deletew":
             ssid = "";
             connectedToWiFi = false;
             currentWifiNetwork = null;
+            wifiStatus = WifiStatus.disconnected;
+            break;
+          default:
             break;
         }
-        if (!await isConnectedLocally()) {
-          connectionStatus = ConnectionStatus.mqtt;
-        } else {
-          connectionStatus = ConnectionStatus.local;
+
+
+        if (connectionStatus == ConnectionStatus.updating || connectionStatus == ConnectionStatus.connecting) {
+          if (!local) {
+            connectionStatus = ConnectionStatus.mqtt;
+          } else {
+            connectionStatus = ConnectionStatus.local;
+          }
         }
-        if (address != "") {
-          this.address = address;
+        if (!local){
+          serverConnected = true;
         }
         if (this.id != null){
           modelsRepository.updateDevice(device:this);
@@ -168,8 +249,68 @@ class Device {
 
       }
     } catch (e) {
+      try {
+        print("json: $message");
+        if (historicalStatus == HistoricalStatus.updating) {
 
+          if (message.substring(2, 3) == "t") {
+            temps = message;
+            for(int i = 0; i < 24; i++){
+              DateTime now = DateTime.now();
+              points.add(Point(
+                  dateTime: now,
+                  device: this));
+            }
+          }
+          if (message.substring(2, 3) == "r") {
+            int day = int.parse(message.split("r")[1].split('":')[0]);
+            temps = temps.split('{"t$day":[')[1];
+            try {
+              temps = temps.split(',]}')[0];
+            } catch (e) {
+              temps = temps.split(',]')[0];
+            }
+            print("Actualizando temperaturas y tiempos del dia: $day");
+            DateTime now = DateTime.now();
+            int month = now.month;
+            if (now.day < day) {
+              month --;
+            }
+            for (int i = 0; i < 24; i++) {
+              DateTime timeDay = DateTime(
+                  now.year,
+                  month,
+                  day,
+                  i,
+                  0,
+                  0,
+                  0,
+                  0);
+              print("timeDay: $timeDay");
+              int temp = 0;
+              try {
+                temp = int.parse(temps.split(",")[i]);
+              }catch (e) {}
+              int rest = 0;
+              try {
+                rest = int.parse(message.split(",")[i]);
+              }catch (e) {}
+              points[i] = Point(
+                  temperature: temp,
+                  resistanceTime: rest,
+                  dateTime: timeDay,
+                  device: this);
+
+              points[i].id = await modelsRepository.createPoint(point: points[i]);
+            }
+            historicalStatus = HistoricalStatus.done;
+          }
+        }
+      }catch (e) {
+        print(e);
+      }
     }
+
     try {
       Map <String, dynamic> map = json.decode(message);
       List<dynamic> listWiFi = map["d"] as List<dynamic>;
@@ -178,26 +319,43 @@ class Device {
       print(map);
       listWiFi.forEach((wifi) {
         Map<String, dynamic> wifiMap = wifi;
-        int dBm = int.parse(wifiMap["r"].toString());
-        double quality = 0;
-        if (dBm <= -100)
-          quality = 0;
-        else if (dBm >= -50)
-          quality = 100;
-        else
-          quality = 2 * (dBm + 100);
-        quality = quality * 4 / 100;
+        try{
+          int dBm = int.parse(wifiMap["r"].toString());
+          double quality = 0;
+          if (dBm <= -100)
+            quality = 0;
+          else if (dBm >= -50)
+            quality = 100;
+          else
+            quality = 2 * (dBm + 100);
+          quality = quality * 4 / 100;
+          wifiNetworkList.add(WifiNetwork(
 
-        wifiNetworkList.add(WifiNetwork(
-            signalLevel: quality.toInt().toString(),
-            ssid: wifiMap["s"].toString(),
-            security: wifiMap["e"].toString()));
+              signalLevel: quality.toInt().toString(),
+              ssid: wifiMap["s"].toString(),
+              security: wifiMap["e"].toString()));
+        }catch (e){
 
+        }
       });
-      deviceStatus = DeviceStatus.updated;
-      if (address != "") {
-        this.address = address;
+      if (connectedToWiFi){
+        wifiStatus = WifiStatus.connected;
+      }else{
+        wifiStatus = WifiStatus.disconnected;
       }
+      deviceStatus = DeviceStatus.updated;
+      if (connectionStatus == ConnectionStatus.updating || connectionStatus == ConnectionStatus.connecting) {
+        if (!local) {
+          connectionStatus = ConnectionStatus.mqtt;
+        } else {
+          connectionStatus = ConnectionStatus.local;
+        }
+      }
+      if (!local){
+        serverConnected = true;
+      }
+
+
       if (this.id != null){
         modelsRepository.updateDevice(device:this);
       }
@@ -209,6 +367,7 @@ class Device {
   factory Device.fromDatabaseJson(Map<String, dynamic> json) {
     return Device(
       id: json["id"],
+      version: json["version"],
       mac: json["mac"],
       address: json["address"],
       name: json["name"],
@@ -235,6 +394,7 @@ class Device {
   Map <String, dynamic> toDatabaseJson() =>
       {
         "id": this.id,
+        "version": this.version,
         "mac": this.mac,
         "address": this.address,
         "name": this.name,
@@ -259,7 +419,9 @@ class Device {
 
   Map <String, dynamic> toCreateDatabaseJson() =>
       {
+        "version": this.version,
         "mac": this.mac,
+        "address": this.address,
         "name": this.name,
         "connected_wifi": (this.connectedToWiFi) ? 1 : 0,
         "ssid": this.ssid,

@@ -1,12 +1,15 @@
+import 'dart:async';
+
+import 'package:animations/animations.dart';
 import 'package:control_termotanque/models/message_manager_model.dart';
 import 'package:control_termotanque/models/models.dart';
+import 'package:control_termotanque/pages/pages.dart';
 import 'package:control_termotanque/repository/models_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:wifi_configuration_2/wifi_configuration_2.dart';
 import 'package:system_settings/system_settings.dart';
 import 'package:provider/provider.dart';
 
-WifiConfiguration ? wifiConfiguration;
 Future<void> enableWifi() async {
   WifiConfiguration wifi = WifiConfiguration();
   await wifi.enableWifi();
@@ -41,24 +44,19 @@ class MyBullet extends StatelessWidget{
 class _SearchDevicesPageState extends State<SearchDevicesPage> with WidgetsBindingObserver {
   ModelsRepository modelsRepository = ModelsRepository();
   bool _isInForeground = true;
-  bool isLoaded = false;
   bool connectingToWiFi = false;
-  List<WifiNetwork> wifiNetworkList = [];
-  WifiNetwork? currentWifiNetwork ;
+  late Timer timerRedirect;
   late MessageManager messageManager;
+  late WifiConfiguration wifiConfiguration;
 
   @override
   void initState() {
     super.initState();
-    messageManager = context.read<MessageManager>();
-    isLoaded = false;
-    connectingToWiFi = false;
     wifiConfiguration = WifiConfiguration();
     enableWifiWithAlarm();
-    wifiConfiguration!.connectToWifi("","","").then((_){
-      getWifiList();
-      checkConnection();
-    });
+    messageManager = context.read<MessageManager>();
+    timerRedirect = Timer.periodic(Duration(milliseconds:1), (timer) {});
+    refresh();
     WidgetsBinding.instance!.addObserver(this);
   }
 
@@ -72,56 +70,39 @@ class _SearchDevicesPageState extends State<SearchDevicesPage> with WidgetsBindi
   @override
   void dispose() {
     WidgetsBinding.instance!.removeObserver(this);
+    timerRedirect.cancel();
     super.dispose();
   }
-
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    _isInForeground = state == AppLifecycleState.resumed;
+    setState(() {
+      _isInForeground = state == AppLifecycleState.resumed;
+    });
     print("is resumed $_isInForeground");
-    if (_isInForeground ){
-      if ( connectingToWiFi){
-        connectingToWiFi= false;
-        wifiConfiguration!.isConnectedToWifi("${currentWifiNetwork!.ssid}").then((connected) async {
-          if (connected){
-            messageManager.listenForNew();
-            messageManager.newDevice.mac = currentWifiNetwork!.bssid;
-            messageManager.newDevice.name = "Nuevo Dispositivo";
-            messageManager.updateDeviceConnection(messageManager.newDevice);
-            if (messageManager.newDevice.connectionStatus == ConnectionStatus.updating && messageManager.newDevice.connectionStatus == ConnectionStatus.local) {
-              await Future.delayed(Duration(seconds: 4));
-            }
-            if(mounted && messageManager.newDevice.connectionStatus != ConnectionStatus.disconnected && messageManager.newDevice.connectionStatus != ConnectionStatus.mqtt) {
-              Navigator.of(context).pushNamed(
-                  "/choose_wifi", arguments: {"create": true});
-            }else{
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('No se pudo conectar al dispositivo')),
-              );
-            }
-          }else{
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Debe seleccionar la red correcta.')),
-            );
-          }
-        });
-      }
+    if (_isInForeground) {
+      messageManager.updateNewDeviceConnection();
     }
   }
-  void refresh(){
-    setState(() {
-      isLoaded = false;
-      connectingToWiFi = false;
-      wifiConfiguration = WifiConfiguration();
-      wifiConfiguration!.connectToWifi("","","").then((_){
-        getWifiList();
-        checkConnection();
-      });
-    });
+
+  void refresh() async {
+    await Future.delayed(Duration(seconds:1),);
+
+    messageManager.scannedDevices = [];
+    messageManager.notifyListeners();
+    wifiConfiguration = WifiConfiguration();
+    messageManager.udpReceiver.close();
+    messageManager.udpReceiver2.close();
+    messageManager.update(updateWifi: true);
+
+    messageManager.status = ManagerStatus.updating ;
+    messageManager.notifyListeners();
+    //wifiConfiguration.connectToWifi("", "", ""); //TODO descomennatar esto para la release
+
   }
   @override
   Widget build(BuildContext context) {
+    messageManager = context.watch<MessageManager>();
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.title),
@@ -134,149 +115,179 @@ class _SearchDevicesPageState extends State<SearchDevicesPage> with WidgetsBindi
           })
         ],
       ),
-      body: backdropFilter(
-        Stack(
-          children: [
-            (wifiNetworkList.isEmpty )?
-            Align(
-                alignment: Alignment.center,
-                child:Text("No se encontraron dispositivos",textAlign: TextAlign.center,)
-            )
-                :
-            getWiFiWidget(),
-
-          ],
-        )
+      body: SingleChildScrollView(
+        child: Column(
+          children: getDevicesScanned()
+        ),
       )
     );
   }
-  Widget backdropFilter( Widget child) {
-    if (isLoaded){
-      return child;
+
+  List<Widget> getDevicesScanned() {
+    List<Widget> list = [];
+    if (messageManager.status == ManagerStatus.updating){
+      list.add(LinearProgressIndicator());
     }
-    return Stack(
-      fit: StackFit.expand,
-      children: <Widget>[
-        child,
-        Container(
-          color: Colors.transparent,
-          child: Align(
-            alignment: Alignment.topCenter,
-            child: LinearProgressIndicator(),
-          ),
+    list.add(
+        ListTile(
+            leading:(messageManager.status == ManagerStatus.updating)? Container(child: CircularProgressIndicator(),height:16,width: 16,):Text(""),
+            title: Text('Dispositivos escaneados',style: TextStyle(color: Theme.of(context).primaryColor),)
         )
-      ],
     );
-  }
-  Widget getWiFiWidget() {
-    return ListView.builder(
-      physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-      shrinkWrap: true,
-      itemBuilder: (context, index) {
-        WifiNetwork wifiNetwork = wifiNetworkList[index];
-        print(wifiNetwork.frequency);
-        print(wifiNetwork.level);
-        print(wifiNetwork.signalLevel);
-        return ListTile(
-          leading: Icon(
-            IconData(59653, fontFamily: 'signal_wifi'),size: 30,),
-          title: Text('${wifiNetwork.ssid!} '),
-          selected: false,
-          onTap: (){
-            setState(() {
-              connectingToWiFi = true;
-              currentWifiNetwork = wifiNetwork;
-            });
-            showDialog(context: context, builder: (context) {
-              return AlertDialog(
-                title: Text('Por favor lea TODO el instructivo'),
-                content: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      ListTile(
-                        leading: MyBullet(),
-                        title: Text('Primero debes apretar "ACEPTAR"'),
-                      ),
-                      ListTile(
-                        leading: MyBullet(),
-                        title: Text('Debes seleccionar la red "${wifiNetwork.ssid}" y ingresar como contraseña "Dinamico"'),
-                      ),
-                      ListTile(
-                        leading: MyBullet(),
-                        title: Text("Luego revisa tus notificaciones y deberia aparecerte algo como este mensaje (el mensaje puede tardar unos segundos en aparecer en la barra de notificaciones):"),
-                      ),
-                      Text("Esta red no tiene acceso a Internet.\n¿Deseas mantener la conexión?",style: Theme.of(context).textTheme.caption),
-                      ListTile(
-                        leading: MyBullet(),
-                        title: Text("Importante!, No debe marcar el mensaje:"),
-                      ),
 
-                      Text("No volver a preguntar",style: Theme.of(context).textTheme.caption),
-                      Divider()
+    if (messageManager.scannedDevices.isNotEmpty) {
+
+      messageManager.scannedDevices.forEach((device) {
+        list.add(
+          OpenContainer(
+            openBuilder: (_, closeContainer) => ChooseWifiPage(create:true),
+            tappable: false,
+            closedColor: Theme.of(context).dialogBackgroundColor,
+            closedBuilder: (_, openContainer) => SearchedDeviceWidget(device: device,onTap: () async {
+              if (device.connectionStatus != ConnectionStatus.local) {
+
+                showDialog(context: context, builder: (context) {
+                  return AlertDialog(
+                    title: Text('Por favor lea TODO el instructivo'),
+                    content: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ListTile(
+                            leading: MyBullet(),
+                            title: Text('Primero debes apretar "ACEPTAR"'),
+                          ),
+                          ListTile(
+                            leading: MyBullet(),
+                            title: Text('Debes seleccionar la red "${messageManager.newDevice.name}" y ingresar como contraseña "Dinamico"'),
+                          ),
+                          ListTile(
+                            leading: MyBullet(),
+                            title: Text("Luego revisa tus notificaciones y deberia aparecerte algo como este mensaje (el mensaje puede tardar unos segundos en aparecer en la barra de notificaciones):"),
+                          ),
+                          Text("Esta red no tiene acceso a Internet.\n¿Deseas mantener la conexión?",style: Theme.of(context).textTheme.caption),
+                          ListTile(
+                            leading: MyBullet(),
+                            title: Text("Importante!, No debe marcar el mensaje:"),
+                          ),
+
+                          Text("No volver a preguntar",style: Theme.of(context).textTheme.caption),
+                          Divider()
+                        ],
+                      ),
+                    ),
+                    actions: <Widget>[
+                      TextButton( // Diseña el boton
+                        child: Text("ACEPTAR"),
+                        onPressed: () async {
+                          SystemSettings.wifi();
+                          Navigator.of(context).pop();
+                          messageManager.selectNewDevice(device);
+
+                          timerRedirect.cancel();
+                          timerRedirect = Timer.periodic(Duration(milliseconds:1), (timer) {
+
+                            if (_isInForeground ){
+
+
+                              if (messageManager.newDevice.connectionStatus == ConnectionStatus.connecting) {
+                                timerRedirect.cancel();
+                                print("siuuu");
+
+                                wifiConfiguration.isConnectedToWifi("${messageManager.newDevice.name}").then((connected) async {
+                                  if (connected){
+
+
+                                    messageManager.update(updateWifi: false);
+                                    await Future.delayed(Duration(seconds:2));
+                                    messageManager.updateDeviceConnection(messageManager.newDevice);
+                                    timerRedirect.cancel();
+                                    timerRedirect = Timer.periodic(Duration(milliseconds:1), (timer) {
+                                      if(mounted && messageManager.newDevice.connectionStatus == ConnectionStatus.local) {
+                                        print("siuuu");
+                                        timerRedirect.cancel();
+                                        openContainer();
+                                      }
+                                    });
+                                    Future.delayed(Duration(milliseconds:3000),(){
+                                      timerRedirect.cancel();
+                                    });
+                                  }else{
+                                    messageManager.disconnectDevice(messageManager.newDevice);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Debe seleccionar la red correcta.')),
+                                    );
+                                  }
+                                });
+                              }else{
+                                print("noooooooooooooooo");
+                              }
+                            }
+                          });
+                        },
+                      ),
                     ],
-                  ),
-                ),
-                actions: <Widget>[
-                  TextButton( // Diseña el boton
-                    child: Text("ACEPTAR"),
-                    onPressed: () async {
-                      SystemSettings.wifi();
-                      Navigator.of(context).pop();
-                    },
-                  ),
-                ],
-              );
-            });
-          },
-
+                  );
+                });
+              }else{
+                openContainer();
+              }
+            },),
+          ),
         );
-      },
-      itemCount: wifiNetworkList.length,
-    );
+      });
+    }else{
+      list.add(Text("No se encontraron dispositivos"));
+    }
+    list.add(Divider());
+
+    list.add(ListTile(
+      leading: Icon(Icons.info_outline),
+      subtitle: Text("Presiona un dispositivo para configurarlo\n"),
+    ));
+    return list;
   }
 
-  Future<void> getWifiList() async {
-    List<WifiNetwork> list = await wifiConfiguration!.getWifiList() as List<WifiNetwork>;
-    wifiNetworkList = [];
-    List<Device> devices = await modelsRepository.getDevices();
-    List macs = [];
-    devices.forEach((device) {
-      macs.add(device.mac);
-    });
-    list.forEach((wifiNetwork) {
-      if (devices.isNotEmpty) {
-        if (!macs.contains(wifiNetwork.bssid)) {
-          if (wifiNetwork.ssid == "Dinamico${wifiNetwork.bssid.toUpperCase().substring(3)}") {
-            wifiNetworkList.add(wifiNetwork);
-          }
-        }
-      }else{
-        if (wifiNetwork.ssid == "Dinamico${wifiNetwork.bssid.toUpperCase().substring(3)}") {
-          wifiNetworkList.add(wifiNetwork);
-        }
-      }
-    });
-    setState(() {
-      isLoaded = true;
-    });
-  }
 
   Future<void> checkConnection() async {
-    bool value = await wifiConfiguration!.isWifiEnabled();
+    bool value = await wifiConfiguration.isWifiEnabled();
     if (!value) {
       await enableWifi();
     }
-    wifiConfiguration!.checkConnection().then((value) {
+    wifiConfiguration.checkConnection().then((value) {
       print('Value: ${value.toString()}');
     });
   }
 
   void enableWifiWithAlarm(){
-    wifiConfiguration!.enableWifiWithAlarm().then((value){
+    wifiConfiguration.enableWifiWithAlarm().then((value){
       print('Wifi with alarm value: ${value.toString()}');
     });
   }
 }
 
+class SearchedDeviceWidget extends StatelessWidget {
+  SearchedDeviceWidget({required this.device, required this.onTap});
+  final Device device;
+  final void Function() onTap;
+  @override
+  Widget build(BuildContext context){
+    return ListTile(
+      enabled: (device.connectionStatus == ConnectionStatus.connecting)? false:true,
+      leading: (device.softwareStatus == SoftwareStatus.outdated)? Icon(Icons.new_releases,size: 30):Icon(
+        IconData(59653, fontFamily: 'signal_wifi'),size: 30,),
+      title: Text('${device.name}'),
+      subtitle: Text(
+          (device.connectionStatus == ConnectionStatus.connecting)
+              ? "Conectando..."
+              : (device.connectionStatus ==
+              ConnectionStatus.disconnected)
+              ? "Desconectado"
+              : (device.connectionStatus == ConnectionStatus.local)
+              ? "Conectado localmente"
+              : (device.connectionStatus == ConnectionStatus.updating)?"Sincronizando...":"Conectado a traves del servidor"),
 
+      onTap: onTap,
+    );
+  }
+}

@@ -95,6 +95,22 @@ class RouteGenerator {
             );
           },
         );
+      case "/update_device":
+        return PageRouteBuilder(
+          transitionDuration: Duration(milliseconds: 700),
+          pageBuilder: (context, animation, secondaryAnimation) => UpdateDevicePage(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            const begin = Offset(1.0, 0.0);
+            const end =  Offset(0.0, 0.0);
+            const curve = Curves.ease;
+
+            var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+            return SlideTransition(
+              position: animation.drive(tween),
+              child: child,
+            );
+          },
+        );
       case "/edit_device":
 
         return PageRouteBuilder(
@@ -130,14 +146,11 @@ class RouteGenerator {
         );
       case '/historical':
         Map<String, dynamic> map = args as Map<String, dynamic>;
-        print(map);
-        Device? device;
-        if (map['device'] != null) {
-          device = Device.fromDatabaseJson(map['device']);
-        }
+
+
         return PageRouteBuilder(
           transitionDuration: Duration(milliseconds: 1000),
-          pageBuilder: (context, animation, secondaryAnimation) => OrdinalComboBarLineChart(device: device!, title: 'Historial', animate: true,),
+          pageBuilder: (context, animation, secondaryAnimation) => OrdinalComboBarLineChart(title: 'Historial', animate: true,),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             const begin = Offset(0.0, -1.0);
             const end =  Offset(0.0, 0.0);

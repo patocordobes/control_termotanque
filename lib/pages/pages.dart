@@ -5,3 +5,4 @@ export 'package:control_termotanque/pages/choose_wifi_page.dart';
 export 'package:control_termotanque/pages/device_settings_page.dart';
 export 'package:control_termotanque/pages/device_page.dart';
 export 'package:control_termotanque/pages/edit_device_page.dart';
+export 'package:control_termotanque/pages/update_device_page.dart';

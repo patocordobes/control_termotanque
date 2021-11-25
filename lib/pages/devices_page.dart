@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'package:control_termotanque/models/message_manager_model.dart';
 import 'package:control_termotanque/models/models.dart';
+import 'package:control_termotanque/pages/pages.dart';
 import 'package:control_termotanque/repository/models_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:provider/provider.dart';
+import 'package:animations/animations.dart';
 
 class DevicesPage extends StatefulWidget {
   const DevicesPage({Key? key, required this.title}) : super(key: key);
@@ -23,19 +25,24 @@ class _DevicesPageState extends State<DevicesPage> {
   late MessageManager messageManager;
   late Timer updateDevicesConnection;
   late Timer updateMqtt;
+  late Timer timerRedirect;
+
 
   @override
   void initState(){
     super.initState();
+    timerRedirect = Timer.periodic(Duration(milliseconds:1), (timer) {
+    });
     messageManager = context.read<MessageManager>();
     messageManager.start();
-    updateDevicesConnection = Timer.periodic(Duration(seconds: 20), (t) {
+    refresh();
+    updateDevicesConnection = Timer.periodic(Duration(seconds: 40), (t) {
       messageManager.updateDevicesConnection();
     });
-    updateMqtt = Timer.periodic(Duration(seconds:10),(t){
-      if (messageManager.mqttClient.connectionStatus!.state != MqttConnectionState.connected){
-        messageManager.update();
-      }
+    updateMqtt = Timer.periodic(Duration(seconds:5),(t){
+
+      messageManager.update(updateWifi: false);
+
     });
   }
   void refresh(){
@@ -44,6 +51,7 @@ class _DevicesPageState extends State<DevicesPage> {
   @override
   void dispose() {
     super.dispose();
+    updateMqtt.cancel();
     updateDevicesConnection.cancel();
     messageManager.stop();
   }
@@ -59,7 +67,7 @@ class _DevicesPageState extends State<DevicesPage> {
     devicesConnected = [];
     devicesDisconnected = [];
     messageManager.getDevices.forEach((device){
-      if (device.connectionStatus != ConnectionStatus.disconnected && device.connectionStatus != ConnectionStatus.updating){
+      if (device.connectionStatus != ConnectionStatus.disconnected && device.connectionStatus != ConnectionStatus.connecting){
         devicesConnected.add(device);
       }else{
         devicesDisconnected.add(device);
@@ -71,15 +79,15 @@ class _DevicesPageState extends State<DevicesPage> {
         title: Text(widget.title),
         actions: <Widget>[
           IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: (){
-                refresh();
-              }
-          ),
-          IconButton(
               icon: const Icon(Icons.settings),
               onPressed: (){
                 Navigator.of(context).pushNamed("/settings");
+              }
+          ),
+          IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: (){
+                refresh();
               }
           ),
         ],
@@ -107,42 +115,21 @@ class _DevicesPageState extends State<DevicesPage> {
       );
     }
     devicesConnected.forEach((device){
-
-      var listTile = ListTile(
-        leading: Icon(
-          IconData(59653, fontFamily: 'signal_wifi'),size: 30,),
-        title: Text('${device.name}'),
-        subtitle: Text("Conectado (mac: ${device.mac})"),
-        selected: false,
-        onTap: (){
-          messageManager.selectDevice(device);
-          Navigator.of(context).pushNamed("/device");
-        },
-        trailing: IconButton(
-            icon: Icon(Icons.settings),
-            onPressed: (){
-              messageManager.selectDevice(device);
-              Navigator.of(context).pushNamed("/edit_device");
-            }
+      list.add(
+        OpenContainer(
+          openBuilder: (_, closeContainer) => DevicePage(),
+          tappable: false,
+          closedColor: Theme.of(context).dialogBackgroundColor,
+          openColor: Colors.transparent,
+          closedBuilder: (_, openContainer) => DeviceWidget(device: device,messageManager: messageManager, openContainer: openContainer,onTap: (){
+            openContainer();
+            messageManager.selectDevice(device);
+          }),
         ),
       );
-      list.add(listTile);
     });
-    if (devicesConnected.isNotEmpty){
-      list.add(Padding(child: Divider(height: 0,),padding: EdgeInsets.only(top:8),));
-    }
-    list.add(
-        ListTile(
-            leading: Icon(Icons.add),
-            title: Text('Sincronizar dispositivo nuevo'),
-          onTap: (){
-            Navigator.of(context).pushNamed("/search_devices");
-          },
-        )
-    );
-
     if (devicesDisconnected.isNotEmpty){
-      list.add(Divider(height: 0));
+
       list.add(
         ListTile(
           leading:Text(""),
@@ -151,39 +138,91 @@ class _DevicesPageState extends State<DevicesPage> {
       );
     }
     devicesDisconnected.forEach((device){
-      var listTile = ListTile(
-        enabled: (device.connectionStatus == ConnectionStatus.updating)? false:true,
-        leading: Icon(
-          IconData(59653, fontFamily: 'signal_wifi'),size: 30,),
-        title: Text('${device.name}'),
-        subtitle: Text((device.connectionStatus == ConnectionStatus.updating)?"Conectando...":"Desconectado"),
-        selected: false,
-        onTap: () async {
-          messageManager.updateDeviceConnection(device);
-          await Future.delayed(Duration(milliseconds:1000));
-          if (device.connectionStatus != ConnectionStatus.disconnected){
+      list.add(
+        OpenContainer(
+          openBuilder: (_, closeContainer) => DevicePage(),
+
+          closedColor: Theme.of(context).dialogBackgroundColor,
+          openColor: Colors.transparent,
+          closedBuilder: (_, openContainer) => DeviceWidget(device: device,messageManager: messageManager, openContainer: openContainer,onTap: () async {
             messageManager.selectDevice(device);
-            Navigator.of(context).pushNamed("/device");
-          }
-        },
-        trailing: IconButton(
-            icon: Icon(Icons.settings),
-            onPressed: (){
-              messageManager.selectDevice(device);
-              Navigator.of(context).pushNamed("/edit_device");
-            }
+            messageManager.updateDeviceConnection(device);
+            timerRedirect.cancel();
+            timerRedirect = Timer.periodic(Duration(milliseconds:1), (timer) {
+              if (device.connectionStatus == ConnectionStatus.local || device.connectionStatus == ConnectionStatus.mqtt){
+                timerRedirect.cancel();
+                openContainer();
+              }
+            });
+            Future.delayed(Duration(milliseconds:3000),(){
+              timerRedirect.cancel();
+            });
+          }),
         ),
       );
-      list.add(listTile);
     });
+    if (devicesDisconnected.isNotEmpty || devicesConnected.isNotEmpty) {
+      list.add(Divider());
+    }
+    list.add(
+        ListTile(
+          leading: Icon(Icons.add,size: 30),
+          title: Text('Sincronizar dispositivo nuevo'),
+          onTap: (){
+            Navigator.of(context).pushNamed("/search_devices");
+          },
+        )
+    );
     list.add(Divider());
     list.add(
         ListTile(
             leading:Icon(Icons.info_outline),
-            subtitle: Text('Toca un dispositivo para conectarte')
+            subtitle: Text('Toca un dispositivo para conectarte\n')
         )
     );
     return list;
   }
 
+}
+class DeviceWidget extends StatelessWidget {
+  DeviceWidget({required this.device, required this.messageManager, required this.openContainer, required this.onTap});
+  final Device device;
+  final MessageManager messageManager;
+  final VoidCallback openContainer;
+  final void Function() onTap;
+  @override
+  Widget build(BuildContext context){
+    return Row(
+        children: [
+          Expanded(
+            child: ListTile(
+              enabled: (device.connectionStatus == ConnectionStatus.connecting)? false:true,
+              leading: (device.softwareStatus == SoftwareStatus.outdated)? Icon(Icons.new_releases,size: 30):Icon(
+                IconData(59653, fontFamily: 'signal_wifi'),size: 30,),
+              title: Text('${device.name}'),
+              subtitle: Text(
+                  (device.connectionStatus == ConnectionStatus.connecting)
+                      ? "Conectando..."
+                      : (device.connectionStatus ==
+                      ConnectionStatus.disconnected)
+                      ? "Desconectado"
+                      : (device.connectionStatus == ConnectionStatus.local)
+                      ? "Conectado localmente"
+                      : (device.connectionStatus == ConnectionStatus.updating)?"Sincronizando...":"Conectado a traves del servidor"),
+
+              onTap: onTap,
+            ),
+          ),
+          Container(color: Theme.of(context).dividerColor, height: 40, width: 2,),
+          IconButton(
+              color: Theme.of(context).accentColor,
+              icon: Icon(Icons.edit),
+              onPressed: (){
+                messageManager.selectDevice(device);
+                Navigator.of(context).pushNamed("/edit_device");
+              }
+          )
+        ]
+    );
+  }
 }

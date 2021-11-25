@@ -31,6 +31,11 @@ class _SettingsPageState extends State<SettingsPage> {
     });
 
   }
+  @override
+  void dispose() {
+
+    super.dispose();
+  }
   List<DropdownMenuItem<String>> buildAndGetDropDownMenuItems(List fruits) {
     List<DropdownMenuItem<String>> items = [];
     for (String fruit in fruits) {
@@ -40,7 +45,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
   void changedDropDownItem(String? selectedUnity) {
     setState(() {
-      celsius = (selectedUnity == "Celsius")? true:false;
+      celsius = (selectedUnity == "Fahrenheit")? false:true;
       user.celsius = celsius;
       modelsRepository.createUser(user: user);
     });
@@ -74,11 +79,11 @@ class _SettingsPageState extends State<SettingsPage> {
                     });
                   },
                 ),
-                ListTile(
-                  title: Text("Ayuda"),
-                  subtitle: Text("Centro de ayuda, Reportar bugs"),
-                  leading: Icon(Icons.help_outline),
-                ),
+                //ListTile(
+                //  title: Text("Ayuda"),
+                //  subtitle: Text("Centro de ayuda, Reportar bugs"),
+                //  leading: Icon(Icons.help_outline),
+                //),
                 ListTile(
                   title: Text("Unidad de temperatura"),
                   subtitle: DropdownButton(
@@ -89,7 +94,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   leading: Icon(Icons.thermostat_outlined),
                 ),
                 ListTile(
-                  title: Text("Informacion de la aplicacion"),
+                  title: Text("Información de la aplicación"),
                   leading: Icon(Icons.info_outline),
                   onTap: (){
                     showDialog<void>(

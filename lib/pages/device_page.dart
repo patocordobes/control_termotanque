@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:animations/animations.dart';
 import 'package:control_termotanque/models/auth/user_model.dart';
 import 'package:control_termotanque/models/message_manager_model.dart';
 import 'package:control_termotanque/models/models.dart';
+import 'package:control_termotanque/pages/historial_page.dart';
 import 'package:control_termotanque/repository/models_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:magnifier/magnifier.dart';
@@ -53,7 +55,7 @@ class _DevicePageState extends State<DevicePage> {
         messageManager.send(jsonEncode(map),false);
       }
     });
-    timerAll = Timer.periodic(Duration(seconds:10), (timer) {
+    timerAll = Timer.periodic(Duration(seconds:30), (timer) {
       if (!isLoaded) {
         Map <String, dynamic> map = {
           "t":"devices/" + device.mac.toUpperCase().substring(3),
@@ -70,7 +72,7 @@ class _DevicePageState extends State<DevicePage> {
       if (device.connectionStatus == ConnectionStatus.disconnected) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('Se há perdido la coñexión con el dispositivo!!!.'),backgroundColor:Theme.of(context).errorColor),
+              content: Text('Se ha perdido la conexión con el dispositivo!'),backgroundColor:Theme.of(context).errorColor),
         );
         Navigator.of(context).pop();
       }
@@ -99,6 +101,24 @@ class _DevicePageState extends State<DevicePage> {
     }else{
       messageManager.send(jsonEncode(map),false);
     }
+    int temperature = device.temperature;
+    double min =  -20;
+    double max = 100;
+
+    if (!user.celsius){
+      min = -10;
+      max = 212;
+    }
+    if (temperature >= max || temperature <= min) {
+      showDialog(context: context, builder: (_) {
+        return AlertDialog(
+            title: Text(
+                "Advertencia del sensor de temperatura"),
+            content: Text(
+                "El sensonr esta fallando. \n - Podria ser porque esta desconectado del dispositivo.\n - Porque el sensor esta fallado.\n - O el dispositivo no puede leer correctamente el sensor")
+        );
+      });
+    }
   }
   @override
   void setState(fn) {
@@ -108,6 +128,7 @@ class _DevicePageState extends State<DevicePage> {
   }
   @override
   void dispose(){
+
 
     timerAll.cancel();
     timerTemp.cancel();
@@ -127,30 +148,34 @@ class _DevicePageState extends State<DevicePage> {
       isLoaded = true;
     }
 
-    String temperatureString= "";
-    int temperature = 0;
-    double min =  0;
-    double max = 0;
-    double interval = 0;
-    double minorTicksPerInterval = 0;
-    if (user.celsius){
-      min = -20;
-      max = 100;
-      interval = 10;
-      minorTicksPerInterval = 5;
-      temperature = device.temperature;
-      temperatureString = "${(temperature > 120 )? "120": (temperature < -20 )? "-20": temperature} °C";
-    }else{
+
+    int temperature = device.temperature;
+    double min =  -20;
+    double max = 100;
+    double interval = 10;
+    double minorTicksPerInterval = 5;
+    int minValue = 20;
+    int maxValue = 85;
+
+    int temp0 = (device.temp0 > maxValue )? maxValue: (device.temp0 < minValue )? minValue : device.temp0;
+    int temp1 = (device.temp1 > maxValue )? maxValue: (device.temp1 < minValue )? minValue : device.temp1;
+    int temp2 = (device.temp2 > maxValue )? maxValue: (device.temp2 < minValue )? minValue : device.temp2;
+    int temp3 = (device.temp3 > maxValue )? maxValue: (device.temp3 < minValue )? minValue : device.temp3;
+    String temperatureString = "${(temperature > max )? "$max": (temperature < min )? "$min": temperature} °C";
+    if (!user.celsius){
+      minValue = 68;
+      maxValue = 185;
       min = -10;
-      max = 220;
+      max = 212;
       interval = 20;
       minorTicksPerInterval = 5;
       temperature = (device.temperature * 1.8 + 32).toInt() ;
-      temperatureString = "${(temperature > 248 )? "248": (temperature < -4 )? "-4": temperature} °F";
+      temperatureString = "${(temperature > max )? "$max": (temperature < min )? "$min": temperature} °F";
+      temp0 = (temp0 * 1.8 + 32).toInt() ;
+      temp1 = (temp1 * 1.8 + 32).toInt() ;
+      temp2 = (temp2 * 1.8 + 32).toInt() ;
+      temp3 = (temp3 * 1.8 + 32).toInt() ;
     }
-
-
-
     return Magnifier(
       enabled: magnifier,
       scale: 1.5,
@@ -165,6 +190,28 @@ class _DevicePageState extends State<DevicePage> {
             ],
           ),
           actions: [
+            (temperature >= max || temperature <= min)?IconButton(
+              onPressed: () {
+                showDialog(context: context, builder: (_){
+                  if (temperature >= max || temperature <= min){
+                    return AlertDialog(
+                        title: Text(
+                            "Advertencia del sensor de temperatura"),
+                        content: Text(
+                            "El sensonr esta fallando. \n - Podria ser porque esta desconectado del dispositivo.\n - Porque el sensor esta fallado.\n - O el dispositivo no puede leer correctamente el sensor")
+                    );
+                  }else{
+                    return AlertDialog(
+                        title: Text(
+                            "Informacion del sensor de temperatura"),
+                        content: Text(
+                            "El sensor esta funcionando correctamente")
+                    );
+                  }
+                });
+              },
+              icon: Icon(Icons.warning),
+            ): Container(),
             IconButton(icon: Icon(Icons.settings), onPressed: (){
               Navigator.of(context).pushNamed("/settings");
             }),
@@ -173,324 +220,450 @@ class _DevicePageState extends State<DevicePage> {
         body:  SafeArea(
           child: SingleChildScrollView(
             child: Column(
+
               children: [
+                Container(
+                  color: Theme.of(context).primaryColor,
+
+                  child: Column(
+                    children: [
+                      ListTile(
+                        leading: Container(
+                          width: 20,
+                          height: 20,
+                          decoration: BoxDecoration(
+                            boxShadow: [
+                              BoxShadow(color:(device.resistance)?Colors.red.shade400:Colors.transparent,blurRadius: 10,spreadRadius: 10)
+                            ],
+                            shape: BoxShape.circle,
+                            color: (device.resistance)?Colors.red.shade500:Colors.red.shade900,
+                          ),
+                        ),
+                          title:Text("Estado de la resistencia: "),
+                          trailing: Text("${(device.resistance)?"Encendida":"Apagada"}")
+                      ),
+                      ListTile(
+                          leading: Icon(Icons.thermostat_outlined),
+                          title:Text("Temperatura: "),
+                          trailing: Text(temperatureString,style: Theme.of(context).textTheme.headline3)
+                      ),
+                    ],
+                  ),
+                ),
                 (isLoaded)?Container():LinearProgressIndicator(),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Card(
-                        elevation: 4.0,
-                        child: Column(
-                          children: [
-                            ListTile(
-                                title:Text("Estado de la resistencia: "),
-                                trailing: Container(
-                                  width: 20,
-                                  height: 20,
-                                  decoration: BoxDecoration(
-                                    boxShadow: [
-                                      BoxShadow(color:(device.resistance)?Colors.blue.shade400:Colors.transparent,blurRadius: 10,spreadRadius: 10)
-                                    ],
-                                    shape: BoxShape.circle,
-                                      color: (device.resistance)?Colors.blue.shade500:Colors.blue.shade900,
-                                  ),
-                                )
-                            ),
-                            ListTile(
-                                title:Text("Temperatura: "),
-                                trailing: Text(temperatureString,style: Theme.of(context).textTheme.headline3)
-                            ),
-                          ],
+                Card(
+                  elevation: 4.0,
+                  child: Column(
+                    children: [
+                      ListTile(
+                        title:Text("Temperatura instantánea"),
+                        trailing: Switch(
+                          value: device.prog0,
+                          onChanged: (value) {
+                            setState(() {
+                              updateDevice({"p0":(value ?"1":"0")});
+                              isLoaded = false;
+                              Map <String, dynamic> map = {
+                                "t":"devices/" + device.mac.toUpperCase().substring(3),
+                                "a":"gett",
+                              };
+                              if (device.connectionStatus == ConnectionStatus.local) {
+                                messageManager.send(jsonEncode(map),true);
+                              }else{
+                                messageManager.send(jsonEncode(map),false);
+                              }
+
+                            });
+                          },
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                Row(
-                  children: [
+                      NumericStepButton(
+                        initialValue: temp0,
+                        minValue: minValue,
+                        maxValue: maxValue,
+                        onChanged: (value) {
+                          setState(() {
+                            if (!user.celsius){
+                              device.temp0 = ((value-32)*5/9).toInt();
+                            }else{
+                              device.temp0 = value;
+                            }
+                          });
+                        },
+                        updateValue: (){
+                          int temp =  device.temp0;
 
-                    Container(
-                      width: MediaQuery.of(context).size.width *0.5,
-                      height: MediaQuery.of(context).size.width *0.5,
-                      child: Stack(
-                        children: [
-                          SfRadialGauge(
-                            axes: <RadialAxis>[
-                              RadialAxis(
-                                radiusFactor: 0.90,
-                                ticksPosition: ElementsPosition.outside,
-                                labelsPosition: ElementsPosition.outside,
-                                minorTicksPerInterval: minorTicksPerInterval,
-                                axisLineStyle: AxisLineStyle(
-                                  thicknessUnit: GaugeSizeUnit.factor,
-                                  thickness: 0.1,
-                                ),
-
-                                majorTickStyle: MajorTickStyle(
-                                    length: 0.1, thickness: 2, lengthUnit: GaugeSizeUnit.factor),
-                                minorTickStyle: MinorTickStyle(
-                                    length: 0.05, thickness: 1.5, lengthUnit: GaugeSizeUnit.factor),
-                                minimum: min,
-                                maximum: max,
-                                interval: interval,
-                                startAngle: 115,
-                                endAngle: 65,
-                                ranges: <GaugeRange>[
-                                  GaugeRange(
-                                      startValue: min,
-                                      endValue: max,
-                                      startWidth: 0.1,
-                                      sizeUnit: GaugeSizeUnit.factor,
-                                      endWidth: 0.1,
-                                      gradient: SweepGradient(
-                                        stops: <double>[0.142857142, 0.28571428, 0.75],
-                                        colors: <Color>[Colors.green, Colors.yellow, Colors.red])
-                                  )
-                                ],
-                                pointers: <GaugePointer>[
-                                  NeedlePointer(
-                                  value: temperature.toDouble(),
-                                      needleColor: Theme.of(context).textTheme.bodyText1!.color,
-                                      tailStyle: TailStyle(
-                                          length: 0.18,
-                                          width: 4,
-                                          color: Theme.of(context).textTheme.bodyText1!.color ,
-                                          lengthUnit: GaugeSizeUnit.factor,
-                                      ),
-
-                                      needleLength: 0.68,
-                                      needleStartWidth: 1,
-                                      needleEndWidth: 4,
-                                      knobStyle: KnobStyle(
-                                          knobRadius: 0.07,
-                                          color: Theme.of(context).dialogBackgroundColor,
-                                          borderWidth: 0.05,
-                                          borderColor: Theme.of(context).textTheme.bodyText1!.color),
-                                      lengthUnit: GaugeSizeUnit.factor
-                                  )
-                                ],
-                                annotations: <GaugeAnnotation>[
-                                  GaugeAnnotation(
-                                      widget: Text(temperatureString,),
-                                      positionFactor: 0.4,
-                                      angle: 90)
-                                ],
-                              ),
-
-                            ],
-
-
-                          ),
-                          Align(
-                            alignment: Alignment.topRight,
-                              child:IconButton(
-                                onPressed: () {
-                                  showDialog(context: context, builder: (_){
-                                    return AlertDialog(
-                                      title: Text("Informacion de la temperatura"),
-                                      content: Text("Si la temperatura esta al maximo podria ser porque el medidor esta fallando o esta deconectado del dispositivo.")
-                                    );
-                                  });
-                                },
-                                icon: Icon(Icons.info_outline),
-                              )
-                          ),
-                        ],
+                          updateDevice({"t0":temp});
+                          isLoaded = false;
+                        },
                       ),
+                    ],
+                  ),
+                ),
+                ExpansionTile(
+                  initiallyExpanded: true,
+                    leading: Icon(Icons.speed,size: 40),
+                    title: Text("Calibre radial de temperatura"),
+
+                    children: [Row(
+                      children: [
+                        Container(
+                          width: MediaQuery.of(context).size.width ,
+                          height: MediaQuery.of(context).size.width ,
+                          child: Stack(
+                            children: [
+                              SfRadialGauge(
+                                axes: <RadialAxis>[
+                                  RadialAxis(
+                                    axisLabelStyle: GaugeTextStyle(fontSize: 20),
+                                    radiusFactor: 0.90,
+                                    ticksPosition: ElementsPosition.outside,
+                                    labelsPosition: ElementsPosition.outside,
+                                    minorTicksPerInterval: minorTicksPerInterval,
+                                    axisLineStyle: AxisLineStyle(
+                                      thicknessUnit: GaugeSizeUnit.factor,
+                                      thickness: 0.1,
+                                    ),
+
+                                    majorTickStyle: MajorTickStyle(
+                                        length: 0.1, thickness: 3, lengthUnit: GaugeSizeUnit.factor),
+                                    minorTickStyle: MinorTickStyle(
+                                        length: 0.05, thickness: 1.5, lengthUnit: GaugeSizeUnit.factor),
+                                    minimum: min,
+                                    maximum: max,
+                                    interval: interval,
+                                    startAngle: 115,
+                                    endAngle: 65,
+                                    ranges: <GaugeRange>[
+                                      GaugeRange(
+                                          startValue: min,
+                                          endValue: max,
+                                          startWidth: 0.1,
+                                          sizeUnit: GaugeSizeUnit.factor,
+                                          endWidth: 0.1,
+                                          gradient: SweepGradient(
+                                              stops: <double>[0.142857142, 0.28571428, 0.75],
+                                              colors: <Color>[Colors.green, Colors.yellow, Colors.red])
+                                      )
+                                    ],
+                                    pointers: <GaugePointer>[
+                                      NeedlePointer(
+                                          value: temperature.toDouble(),
+                                          needleColor: Theme.of(context).textTheme.bodyText1!.color,
+                                          tailStyle: TailStyle(
+                                            length: 0.18,
+                                            width: 6,
+                                            color: Theme.of(context).textTheme.bodyText1!.color ,
+                                            lengthUnit: GaugeSizeUnit.factor,
+                                          ),
+
+                                          needleLength: 0.70,
+                                          needleStartWidth: 2,
+                                          needleEndWidth: 6,
+                                          knobStyle: KnobStyle(
+                                              knobRadius: 0.07,
+                                              color: Theme.of(context).dialogBackgroundColor,
+                                              borderWidth: 0.05,
+                                              borderColor: Theme.of(context).textTheme.bodyText1!.color),
+                                          lengthUnit: GaugeSizeUnit.factor
+                                      )
+                                    ],
+                                    annotations: <GaugeAnnotation>[
+                                      GaugeAnnotation(
+                                          widget: Text(temperatureString,),
+                                          positionFactor: 0.4,
+                                          angle: 90)
+                                    ],
+                                  ),
+
+                                ],
+
+
+                              ),
+                              Align(
+                                  alignment: Alignment.topRight,
+                                  child:IconButton(
+                                    onPressed: () {
+                                      showDialog(context: context, builder: (_){
+                                        if (temperature >= max || temperature <= min){
+                                          return AlertDialog(
+                                              title: Text(
+                                                  "Advertencia del sensor de temperatura"),
+                                              content: Text(
+                                                  "El sensonr esta fallando. \n - Podria ser porque esta desconectado del dispositivo.\n - Porque el sensor esta fallado.\n - O el dispositivo no puede leer correctamente el sensor")
+                                          );
+                                        }else{
+                                          return AlertDialog(
+                                              title: Text(
+                                                  "Informacion del sensor de temperatura"),
+                                              content: Text(
+                                                  "El sensor esta funcionando correctamente")
+                                          );
+                                        }
+                                      });
+                                    },
+                                    icon: Icon(Icons.info_outline),
+                                  )
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    Expanded(
-                      child:Card(
+                    ]
+                ),
+                ExpansionTile(
+                    leading: Icon(Icons.alarm,size: 40),
+                    title: Text("Objetivos"),
+                    subtitle: Text("Se pueden establecer 3 objetivos"),
+                    children: [
+                      Card(
                         elevation: 4.0,
                         child: Column(
                           children: [
                             ListTile(
-                              title:Text("Temperatura instantanea"),
+                              title: Text("Objetivo 1"),
                               trailing: Switch(
-                                value: device.prog0,
+                                value: device.prog1,
                                 onChanged: (value) {
                                   setState(() {
-                                    updateDevice({"p0":(value ?"1":"0")});
+                                    updateDevice({"p1":(value ?"1":"0")});
                                     isLoaded = false;
                                   });
                                 },
                               ),
                             ),
-                            NumericStepButton(
-                              initialValue: device.temp0,
-                              minValue: 0,
-                              maxValue: 100,
-                              onChanged: (value) {
-                                device.temp0 = value;
-                              },
-                              updateValue: (){
-                                updateDevice({"t0":device.temp0});
-                                isLoaded = false;
-                              },
-                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(left:16, bottom:10,right: 16),
+                              child: Row(
+                                  children: [
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text("Hora objetivo",style:Theme.of(context).textTheme.caption),
+                                        OutlinedButton(
+                                          child: Text("${device.time1}"),
+                                          onPressed: () async {
+                                            final TimeOfDay? result = await showTimePicker(context: context, initialTime: TimeOfDay.now());
+                                            setState(() {
+                                              if (result != null) {
+                                                updateDevice({"h1":result.format(context)});
+                                                isLoaded = false;
+                                              }
+                                            });
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                    Expanded(
+                                      child: NumericStepButton(
+                                        initialValue: temp1,
+                                        minValue: minValue,
+                                        maxValue: maxValue,
+                                        onChanged: (value) {
+                                          setState(() {
+                                            if (!user.celsius){
+                                              device.temp1 = ((value-32)*5~/9).toInt();
+                                            }else{
+                                              device.temp1 = value;
+                                            }
+                                          });
+                                        },
+                                        updateValue: (){
+                                          int temp =  device.temp1;
+                                          updateDevice({"t1":temp});
+                                          isLoaded = false;
+                                        },
+                                      ),
+                                    ),
+                                  ]
+                              ),
+                            )
                           ],
                         ),
                       ),
-                    )
-                  ],
-                ),
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child:Column(
-                        children: [
-                          Card(
-                            elevation: 4.0,
-                            child: Column(
-                              children: [
-                                ListTile(
-                                  leading: Text("Programa 1"),
-                                  trailing: Switch(
-                                    value: device.prog1,
-                                    onChanged: (value) {
-                                      setState(() {
-                                        updateDevice({"p1":(value ?"1":"0")});
-                                        isLoaded = false;
-                                      });
-                                    },
-                                  ),
-                                ),
-                                ListTile(
-                                  leading: OutlinedButton(
-                                    child: Text("${device.time1}"),
-                                    onPressed: () async {
-                                      final TimeOfDay? result = await showTimePicker(context: context, initialTime: TimeOfDay.now());
-                                      setState(() {
-                                        if (result != null) {
-                                          updateDevice({"h1":result.format(context)});
-                                          isLoaded = false;
-                                        }
-                                      });
-                                    },
-                                  ),
-                                  title: NumericStepButton(
-                                    initialValue: device.temp1,
-                                    minValue: 0,
-                                    maxValue: 100,
-                                    onChanged: (value) {
-                                      setState(() {
-                                        device.temp1 = value;
-                                      });
-                                    },
-                                    updateValue: (){
-                                      updateDevice({"t1":device.temp1});
-                                      isLoaded = false;
-                                    },
-                                  ),
-                                )
-                              ],
+                      Card(
+                        elevation: 4.0,
+                        child: Column(
+                          children: [
+                            ListTile(
+                              title: Text("Objetivo 2"),
+                              trailing: Switch(
+                                value: device.prog2,
+                                onChanged: (value) {
+                                  setState(() {
+                                    updateDevice({"p2":(value ?"1":"0")});
+                                    isLoaded = false;
+                                  });
+                                },
+                              ),
                             ),
-                          ),
-                          Card(
-                            elevation: 4.0,
-                            child: Column(
-                              children: [
-                                ListTile(
-                                  leading: Text("Programa 2"),
-                                  trailing: Switch(
-                                    value: device.prog2,
-                                    onChanged: (value) {
-                                      setState(() {
-                                        updateDevice({"p2":(value ?"1":"0")});
-                                        isLoaded = false;
-                                      });
-                                    },
-                                  ),
-                                ),
-                                ListTile(
-                                  leading: OutlinedButton(
-                                    child: Text("${device.time2}"),
-                                    onPressed: () async {
-                                      final TimeOfDay? result = await showTimePicker(context: context, initialTime: TimeOfDay.now());
-                                      setState(() {
-                                        if (result != null) {
-                                          updateDevice({"h2":result.format(context)});
+                            Padding(
+                              padding: const EdgeInsets.only(left:16, bottom:10,right: 16),
+                              child: Row(
+                                  children: [
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text("Hora objetivo",style:Theme.of(context).textTheme.caption),
+                                        OutlinedButton(
+                                          child: Text("${device.time2}"),
+                                          onPressed: () async {
+                                            final TimeOfDay? result = await showTimePicker(context: context, initialTime: TimeOfDay.now());
+                                            setState(() {
+                                              if (result != null) {
+                                                updateDevice({"h2":result.format(context)});
+                                                isLoaded = false;
+                                              }
+                                            });
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                    Expanded(
+                                      child: NumericStepButton(
+                                        initialValue: temp2,
+                                        minValue: minValue,
+                                        maxValue: maxValue,
+                                        onChanged: (value) {
+                                          setState(() {
+                                            if (!user.celsius){
+                                              device.temp2 = ((value-32)*5~/9).toInt();
+                                            }else{
+                                              device.temp2 = value;
+                                            }
+                                          });
+                                        },
+                                        updateValue: (){
+                                          int temp =  device.temp2;
+                                          updateDevice({"t2":temp});
                                           isLoaded = false;
-                                        }
-                                      });
-                                    },
-                                  ),
-                                  title: NumericStepButton(
-                                    initialValue: device.temp2,
-                                    minValue: 0,
-                                    maxValue: 100,
-                                    onChanged: (value) {
-                                      setState(() {
-                                        device.temp2 = value;
-                                      });
-                                    },
-                                    updateValue: (){
-                                      updateDevice({"t2":device.temp2});
-                                      isLoaded = false;
-                                    },
-                                  ),
-                                )
-                              ],
-                            ),
-                          ),
-                          Card(
-                            elevation: 4.0,
-                            child: Column(
-                              children: [
-                                ListTile(
-                                  leading: Text("Programa 3"),
-                                  trailing: Switch(
-                                    value: device.prog3,
-                                    onChanged: (value) {
-                                      setState(() {
-                                        updateDevice({"p3":(value ?"1":"0")});
-                                        isLoaded = false;
-                                      });
-                                    },
-                                  ),
-                                ),
-                                ListTile(
-                                  leading: OutlinedButton(
-                                    child: Text("${device.time3}"),
-                                    onPressed: () async {
-                                      final TimeOfDay? result = await showTimePicker(context: context, initialTime: TimeOfDay.now());
-                                      setState(() {
-                                        if (result != null) {
-                                          updateDevice({"h3":result.format(context)});
-                                          isLoaded = false;
-                                        }
-                                      });
-                                    },
-                                  ),
-                                  title: NumericStepButton(
-                                    initialValue:device.temp3,
-                                    minValue: 0,
-                                    maxValue: 100,
-                                    onChanged: (value) {
-                                      setState(() {
-                                        device.temp3 = value;
-                                      });
-                                    },
-                                    updateValue: (){
-                                      updateDevice({"t3":device.temp3});
-                                      isLoaded = false;
-                                    },
-                                  ),
-                                )
-                              ],
-                            ),
-                          ),
-                          //TextButton.icon(onPressed: (){
-                          //  Navigator.of(context).pushNamed("/historical");
-                          //},icon: Icon(Icons.bar_chart), label: Text("Historial de temperaturas y tiempos")),
-                          //Container(
-                          //  width: MediaQuery.of(context).size.width,
-                          //  height: MediaQuery.of(context).size.width
-                          //)
-
-                        ],
+                                        },
+                                      ),
+                                    ),
+                                  ]
+                              ),
+                            )
+                          ],
+                        ),
                       ),
-                    )
-                  ]
+                      Card(
+                        elevation: 4.0,
+                        child: Column(
+                          children: [
+                            ListTile(
+                              title: Text("Objetivo 3"),
+                              trailing: Switch(
+                                value: device.prog3,
+                                onChanged: (value) {
+                                  setState(() {
+                                    updateDevice({"p3":(value ?"1":"0")});
+                                    isLoaded = false;
+                                  });
+                                },
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(left:16, bottom:10,right: 16),
+                              child: Row(
+                                  children: [
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text("Hora objetivo",style:Theme.of(context).textTheme.caption),
+                                        OutlinedButton(
+                                          child: Text("${device.time3}"),
+                                          onPressed: () async {
+                                            final TimeOfDay? result = await showTimePicker(context: context, initialTime: TimeOfDay.now());
+                                            setState(() {
+                                              if (result != null) {
+                                                updateDevice({"h3":result.format(context)});
+                                                isLoaded = false;
+                                              }
+                                            });
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                    Expanded(
+                                      child: NumericStepButton(
+                                        initialValue: temp3,
+                                        minValue: minValue,
+                                        maxValue: maxValue,
+                                        onChanged: (value) {
+                                          setState(() {
+                                            if (!user.celsius){
+                                              device.temp3 = ((value-32)*5~/9).toInt();
+                                            }else{
+                                              device.temp3 = value;
+                                            }
+                                          });
+                                        },
+                                        updateValue: (){
+                                          int temp =  device.temp3;
+                                          updateDevice({"t3":temp});
+                                          isLoaded = false;
+                                        },
+                                      ),
+                                    ),
+                                  ]
+                              ),
+                            )
+                          ],
+                        ),
+                      ),
+                    ]
+                ),
+                OpenContainer(
+                  openBuilder: (_, closeContainer) => OrdinalComboBarLineChart(title: 'Historial', animate: true),
+                  onClosed: (Never? never){
+                    modelsRepository.getUser.then((user) {
+                      setState(() {
+                        this.user = user;
+                      });
+                    });
+                    refresh();
+                    timerTemp = Timer.periodic(Duration(seconds:10), (timer) {
+                      Map <String, dynamic> map = {
+                        "t":"devices/" + device.mac.toUpperCase().substring(3),
+                        "a":"gett",
+                      };
+                      if (device.connectionStatus == ConnectionStatus.local) {
+                        messageManager.send(jsonEncode(map),true);
+                      }else{
+                        messageManager.send(jsonEncode(map),false);
+                      }
+                    });
+                    timerAll = Timer.periodic(Duration(seconds:30), (timer) {
+                      if (!isLoaded) {
+                        Map <String, dynamic> map = {
+                          "t":"devices/" + device.mac.toUpperCase().substring(3),
+                          "a":"get",
+                        };
+                        if (device.connectionStatus == ConnectionStatus.local) {
+                          messageManager.send(jsonEncode(map),true);
+                        }else{
+                          messageManager.send(jsonEncode(map),false);
+                        }
+                      }
+                    });
+
+                  },
+                  tappable: false,
+                  closedColor: Theme.of(context).dialogBackgroundColor,
+                  openColor: Colors.transparent,
+                  closedBuilder: (_, openContainer) => TextButton.icon(onPressed: (){
+
+                    timerAll.cancel();
+                    timerTemp.cancel();
+                    openContainer();
+                  },icon: Icon(Icons.bar_chart), label: Text("Historial de temperaturas y tiempos")),
+
+                ),
+
+                Container(
+                    width: MediaQuery.of(context).size.width,
+                    height: 100
                 )
               ],
             ),
@@ -505,7 +678,7 @@ class _DevicePageState extends State<DevicePage> {
           icon: Row(
             children: [
               Icon(Icons.search),
-              Text("Lupa"),
+              Text("Lupa",style:Theme.of(context).textTheme.button),
               Switch(
                 value: magnifier,
                 onChanged: (value){
@@ -584,61 +757,67 @@ class _NumericStepButtonState extends State<NumericStepButton> {
   }
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
+    return Column(
+
       children: [
-        GestureDetector(
-          onLongPress: () {
-            timer = Timer.periodic(Duration(milliseconds: 50), (t) {
-              setState((){
-                rest();
-              });
-            });
-          },
-          onLongPressUp: () {
-            widget.updateValue();
-            timer.cancel();
-          },
-          child: IconButton(
-
-            onPressed: () {
-              setState(() {
-                rest();
+        Text("Temperatura deseada",style:Theme.of(context).textTheme.caption),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            GestureDetector(
+              onLongPress: () {
+                timer = Timer.periodic(Duration(milliseconds: 50), (t) {
+                  setState((){
+                    rest();
+                  });
+                });
+              },
+              onLongPressUp: () {
                 widget.updateValue();
-              });
-            },
-            icon: Icon(Icons.remove),
-          ),
-        ),
-        Text(
-          '$counter ° C',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 20.0,
-          ),
-        ),
-        GestureDetector(
-          onLongPress: () {
+                timer.cancel();
+              },
+              child: IconButton(
 
-            timer = Timer.periodic(Duration(milliseconds: 50), (t) {
-              setState(() {
-                sum();
-              });
-            });
-          },
-          onLongPressUp: () {
-            widget.updateValue();
-            timer.cancel();
-          },
-          child: IconButton(
-            onPressed: () {
-              setState(() {
-                sum();
+                onPressed: () {
+                  setState(() {
+                    rest();
+                    widget.updateValue();
+                  });
+                },
+                icon: Icon(Icons.remove),
+              ),
+            ),
+            Text(
+              '$counter ° ',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 20.0,
+              ),
+            ),
+            GestureDetector(
+              onLongPress: () {
+
+                timer = Timer.periodic(Duration(milliseconds: 50), (t) {
+                  setState(() {
+                    sum();
+                  });
+                });
+              },
+              onLongPressUp: () {
                 widget.updateValue();
-              });
-            },
-            icon: Icon(Icons.add),
-          ),
+                timer.cancel();
+              },
+              child: IconButton(
+                onPressed: () {
+                  setState(() {
+                    sum();
+                    widget.updateValue();
+                  });
+                },
+                icon: Icon(Icons.add),
+              ),
+            ),
+          ],
         ),
       ],
     );

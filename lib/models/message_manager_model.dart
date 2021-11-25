@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
 import 'package:udp/udp.dart';
+import 'package:wifi_configuration_2/wifi_configuration_2.dart';
 
 
 enum ManagerStatus{
@@ -24,31 +25,72 @@ class MessageManager with ChangeNotifier {
   late UDP udpSender;
   ManagerStatus status = ManagerStatus.stopped;
   List<Device> devices = [];
+  List<Device> scannedDevices = [];
   late Device selectedDevice;
   Device newDevice = Device(mac: "");
+  WifiConfiguration wifiConfiguration = WifiConfiguration();
+
+  Future<List<WifiNetwork>> getWifiList() async {
+    wifiConfiguration = WifiConfiguration();
+
+    List<WifiNetwork> list = await wifiConfiguration.getWifiList() as List<WifiNetwork>;
+    List<WifiNetwork> wifiNetworkList = [];
+    List macs = [];
+    devices.forEach((device) {
+      macs.add(device.mac);
+    });
+    list.forEach((wifiNetwork) {
+      if (devices.isNotEmpty) {
+        if (!macs.contains(wifiNetwork.bssid)) {
+          if (wifiNetwork.ssid == "Dinamico${wifiNetwork.bssid!.toUpperCase().substring(3)}") {
+            wifiNetworkList.add(wifiNetwork);
+          }
+        }
+      }else{
+        if (wifiNetwork.ssid == "Dinamico${wifiNetwork.bssid!.toUpperCase().substring(3)}") {
+          wifiNetworkList.add(wifiNetwork);
+        }
+      }
+    });
+    return wifiNetworkList;
+  }
+
   Future<void> updateDevices() async {
     ModelsRepository modelsRepository = ModelsRepository();
     devices = await modelsRepository.getDevices();
     notifyListeners();
   }
-  void update() async {
+  void update({required bool updateWifi}) async {
     if (status == ManagerStatus.started || status == ManagerStatus.updated) {
       status = ManagerStatus.updating ;
+
       notifyListeners();
-      udpSender = await UDP.bind(Endpoint.broadcast(port: Port(8888)));
-      udpReceiver = await UDP.bind(Endpoint.any(port: Port(8890)));
-      udpReceiver2 = await UDP.bind(Endpoint.any(port: Port(8891)));
+      if (updateWifi) {
+        scannedDevices = [];
+        notifyListeners();
+        List<WifiNetwork> wifiNetworkList = await getWifiList();
+
+
+        wifiNetworkList.forEach((wifi){
+          scannedDevices.add(Device(mac:wifi.bssid!,name: wifi.ssid!));
+        });
+
+      }
       if (mqttClient.connectionStatus!.state != MqttConnectionState.connected) {
+
         mqttClient = await connectToMQTT();
         if (mqttClient.connectionStatus!.state == MqttConnectionState.connected) {
           listenMqtt();
         }
-      }else{
-        listenMqtt();
       }
-      listenUDP();
-      updateDevicesConnection();
+      if (udpReceiver.closed) {
+
+        listenUDP();
+        print("udp inited");
+      }
+
       status = ManagerStatus.updated;
+      notifyListeners();
     }
   }
   void start() async {
@@ -56,7 +98,6 @@ class MessageManager with ChangeNotifier {
     if (status == ManagerStatus.stopped) {
 
       status = ManagerStatus.starting;
-      udpSender = await UDP.bind(Endpoint.broadcast(port: Port(8888)));
       udpReceiver = await UDP.bind(Endpoint.any(port: Port(8890)));
       udpReceiver2 = await UDP.bind(Endpoint.any(port: Port(8891)));
       mqttClient = await connectToMQTT();
@@ -67,9 +108,16 @@ class MessageManager with ChangeNotifier {
       }catch (e){
       }
       listenUDP();
+      List<WifiNetwork> wifiNetworkList = await getWifiList();
+
+      scannedDevices = [];
+      wifiNetworkList.forEach((wifi){
+        scannedDevices.add(Device(mac:wifi.bssid!,name: wifi.ssid!));
+      });
+
       updateDevicesConnection();
       status = ManagerStatus.started;
-
+      notifyListeners();
     }
 
   }
@@ -92,10 +140,15 @@ class MessageManager with ChangeNotifier {
   }
   void disconnectDevice(Device device){
     device.connectionStatus = ConnectionStatus.disconnected;
+    device.numberOfDisconnections = 3;
+    notifyListeners();
+  }
+  Future<void> updateNewDeviceConnection() async {
+    newDevice.connectionStatus = ConnectionStatus.connecting;
     notifyListeners();
   }
   Future<void> updateDeviceConnection(Device device) async {
-    device.connectionStatus = ConnectionStatus.updating;
+    device.connectionStatus = ConnectionStatus.connecting;
     updateDevicesConnection();
   }
   Future<void> updateDevicesConnection() async {
@@ -104,8 +157,11 @@ class MessageManager with ChangeNotifier {
 
       Device device = getDevices[i];
       if (device.connectionStatus != ConnectionStatus.disconnected) {
+        if (device.connectionStatus != ConnectionStatus.connecting) {
+          device.connectionStatus = ConnectionStatus.updating;
+        }
         device.deviceStatus = DeviceStatus.updating;
-        device.connectionStatus = ConnectionStatus.updating;
+
         notifyListeners();
         Map <String, dynamic> map = {
           "t": "devices/" + device.mac.toUpperCase().substring(3),
@@ -113,8 +169,10 @@ class MessageManager with ChangeNotifier {
         };
         bool local = true;
         if (await device.isConnectedLocally()) {
+
           this.send(jsonEncode(map), true);
         } else {
+
           local = false;
           try {
             this.send(jsonEncode(map), false);
@@ -131,100 +189,94 @@ class MessageManager with ChangeNotifier {
         }
 
         device.updateDeviceConnection =
+            Timer.periodic(Duration(seconds: 3), (timer) {
+              if (device.connectionStatus == ConnectionStatus.updating){
+                device.numberOfDisconnections ++;
+
+              }else if (device.connectionStatus == ConnectionStatus.connecting || device.connectionStatus == ConnectionStatus.disconnected){
+                device.numberOfDisconnections = 3;
+                device.connectionStatus = ConnectionStatus.disconnected;
+              }else{
+                if (local){
+                  device.connectionStatus = ConnectionStatus.local;
+                }else{
+                  device.connectionStatus = ConnectionStatus.mqtt;
+                }
+                device.numberOfDisconnections = 0;
+              }
+
+              if (device.numberOfDisconnections >= 3){
+                device.numberOfDisconnections = 3;
+                device.connectionStatus = ConnectionStatus.disconnected;
+              }
+              device.updateDeviceConnection.cancel();
+              device.deviceStatus = DeviceStatus.updated;
+
+
+              status = ManagerStatus.updated;
+              notifyListeners();
+            });
+      }
+    }
+    for (int i = 0;i < scannedDevices.length;i++) {
+
+      Device device = scannedDevices[i];
+      if (device.connectionStatus != ConnectionStatus.disconnected) {
+
+        if (device.connectionStatus != ConnectionStatus.connecting) {
+          device.connectionStatus = ConnectionStatus.updating;
+        }
+        device.deviceStatus = DeviceStatus.updating;
+        notifyListeners();
+        Map <String, dynamic> map = {
+          "t": "devices/" + device.mac.toUpperCase().substring(3),
+          "a": "getv"
+        };
+
+
+        this.send(jsonEncode(map), true);
+
+        try {
+          if (device.updateDeviceConnection.isActive){
+            device.updateDeviceConnection.cancel();
+          }
+        }catch (e){
+
+        }
+
+        device.updateDeviceConnection =
         Timer.periodic(Duration(seconds: 3), (timer) {
           if (device.connectionStatus == ConnectionStatus.updating){
             device.numberOfDisconnections ++;
 
+          }else if (device.connectionStatus == ConnectionStatus.connecting || device.connectionStatus == ConnectionStatus.disconnected){
+
+            device.numberOfDisconnections = 3;
+            device.connectionStatus = ConnectionStatus.disconnected;
           }else{
-            if (local){
-              device.connectionStatus = ConnectionStatus.local;
-            }else{
-              device.connectionStatus = ConnectionStatus.mqtt;
-            }
+
+            device.connectionStatus = ConnectionStatus.local;
+
             device.numberOfDisconnections = 0;
           }
 
-          if (device.numberOfDisconnections >= 3){
+          if (device.numberOfDisconnections >= 2){
             device.numberOfDisconnections = 3;
             device.connectionStatus = ConnectionStatus.disconnected;
           }
           device.updateDeviceConnection.cancel();
           device.deviceStatus = DeviceStatus.updated;
-
-
           status = ManagerStatus.updated;
           notifyListeners();
         });
       }
     }
-    Device device = newDevice;
-    if (device.connectionStatus != ConnectionStatus.disconnected) {
-      device.deviceStatus = DeviceStatus.updating;
-      device.connectionStatus = ConnectionStatus.updating;
-      notifyListeners();
-      Map <String, dynamic> map = {
-        "t": "devices/" + device.mac.toUpperCase().substring(3),
-        "a": "getv"
-      };
-      bool local = true;
-      if (await device.isConnectedLocally()) {
-        this.send(jsonEncode(map), true);
-      } else {
-        local = false;
-        try {
-          this.send(jsonEncode(map), false);
-        } catch (e) {
-
-        }
-      }
-      try {
-        if (device.updateDeviceConnection.isActive){
-          device.updateDeviceConnection.cancel();
-        }
-      }catch (e){
-
-      }
-
-      device.updateDeviceConnection =
-          Timer.periodic(Duration(seconds: 3), (timer) {
-            if (device.connectionStatus == ConnectionStatus.updating){
-              device.numberOfDisconnections ++;
-
-            }else{
-              if (local){
-                device.connectionStatus = ConnectionStatus.local;
-              }else{
-                device.connectionStatus = ConnectionStatus.mqtt;
-              }
-              device.numberOfDisconnections = 0;
-            }
-
-            if (device.numberOfDisconnections >= 3){
-              device.numberOfDisconnections = 3;
-              device.connectionStatus = ConnectionStatus.disconnected;
-            }
-            device.updateDeviceConnection.cancel();
-            device.deviceStatus = DeviceStatus.updated;
-
-
-            status = ManagerStatus.updated;
-            notifyListeners();
-          });
-    }
+    await Future.delayed(Duration(seconds: 3));
     status = ManagerStatus.updated;
     notifyListeners();
   }
   List<Device> get getDevices{
     return this.devices;
-  }
-  void listenForNew() async  {
-    udpReceiverForNew = await UDP.bind(Endpoint.any(port: Port(8890)));
-    udpReceiverForNew.listen((datagram) {
-      var str = String.fromCharCodes(datagram.data);
-      newDevice.listen(str,address: datagram.address.address);
-      notifyListeners();
-    }, timeout: Duration(minutes: 10));
-    udpSenderForNew = await UDP.bind(Endpoint.broadcast(port: Port(8888)));
   }
   void listenMqtt(){
     mqttClient.updates!.listen((List<MqttReceivedMessage<MqttMessage?>>? c) {
@@ -235,40 +287,43 @@ class MessageManager with ChangeNotifier {
           'EXAMPLE::Change notification:: topic is <${c[0]
               .topic}>, payload is <-- $pt -->');
       getDevices.forEach((device) {
-        device.listen(pt);
+        device.listen(pt,local:false);
       });
 
       notifyListeners();
     });
   }
-  void listenUDP() {
+  void listenUDP() async  {
+    udpReceiver = await UDP.bind(Endpoint.any(port: Port(8890)));
     udpReceiver.listen((datagram) {
       var str = String.fromCharCodes(datagram.data);
-      print(getDevices.length);
       getDevices.forEach((device){
-        device.listen(str,address: datagram.address.address);
+        device.listen(str,address: datagram.address.address,local:true);
+      });
+      scannedDevices.forEach((device){
+        device.listen(str,address: datagram.address.address,local:true);
+      });
+      notifyListeners();
+    }, timeout: Duration(hours: 1));
+    udpReceiver2 = await UDP.bind(Endpoint.any(port: Port(8891)));
+    udpReceiver2.listen((datagram) {
+      var str = String.fromCharCodes(datagram.data);
+      getDevices.forEach((device){
+        device.listen(str,address: datagram.address.address,local:true);
       });
       notifyListeners();
     }, timeout: Duration(hours: 1));
   }
-  void sendForNew(String message) async {
-    status = ManagerStatus.updating;
-
-    var dataLength = await udpSenderForNew.send(
-        message.codeUnits, Endpoint.broadcast(port: Port(8888)));
-    print("Message: ${message}");
-    print("${dataLength} bytes sent.");
-
-    notifyListeners();
-  }
   void send(String message,bool local) async {
-    status = ManagerStatus.updating;
     if (local) {
 
+      udpSender = await UDP.bind(Endpoint.broadcast(port: Port(8888)));
       var dataLength = await udpSender.send(
           message.codeUnits, Endpoint.broadcast(port: Port(8888)));
       print("Message: ${message}");
       print("${dataLength} bytes sent.");
+      udpSender.close();
+
     }else{
       if (mqttClient.connectionStatus!.state == MqttConnectionState.connected) {
         const pubTopic = 'control';
@@ -284,6 +339,10 @@ class MessageManager with ChangeNotifier {
 
   void selectDevice(Device device) {
     selectedDevice = device;
+    notifyListeners();
+  }
+  void selectNewDevice(Device device) {
+    newDevice = device;
     notifyListeners();
   }
 

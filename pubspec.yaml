@@ -42,11 +42,12 @@ dependencies:
   udp: ^3.0.3
   system_settings: ^2.0.0
   animated_text_kit: ^4.2.1
-
   syncfusion_flutter_gauges: ^19.3.43
   magnifier: ^0.0.5
   mqtt_client: ^9.6.1
   charts_flutter: ^0.11.0
+  dio: ^4.0.0
+  animations: ^2.0.2
 
 
 dev_dependencies:
@@ -70,7 +71,8 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
-
+  assets:
+    - assets/files/
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg
