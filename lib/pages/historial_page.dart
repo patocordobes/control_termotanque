@@ -44,6 +44,9 @@ class _OrdinalComboBarLineChartState extends State<OrdinalComboBarLineChart> {
   }
   void refresh() async {
     if (_date.day == DateTime.now().day && _date.month == DateTime.now().month && _date.year == DateTime.now().year ){
+      setState(() {
+        this.points = device.todayPoints;
+      });
       if (device.todayPoints.length != DateTime.now().hour + 1) {
         Map <String, dynamic> map = {
           "t": "devices/" + device.mac.toUpperCase().substring(3),

@@ -157,15 +157,24 @@ class _UpdateDevicePageState extends State<UpdateDevicePage> {
                                 data: formData);
                             if (response.statusCode == 200) {
                               device.softwareStatus != SoftwareStatus.upgraded;
-                              ScaffoldMessenger.of(context).showSnackBar(
+                              Navigator.of(context).pop();
+                              messageManager.disconnectDevice(device);
+                              showDialog(context: context, builder: (_) {
+                                return AlertDialog(
+                                  title: Text("Software actualizado correctamente"),
+                                  content: Text("Para terminar presiona aceptar. El dispositivo tardara unos minutos en volver a responder, luego podra volver a conectarlo apretando en conectar. "),
+                                  actions: [
+                                    TextButton(
+                                      child: Text("ACEPTAR"),
+                                      onPressed: () {
+                                        Navigator.of(context).pop();
+                                      },
+                                    )
+                                  ],
 
-                                SnackBar(
-                                    content: Text('El software se actualizo exitosamente'),backgroundColor: Colors.green)
-                              );
+                                );
+                              });
                             }
-
-
-
                           }
                         });
                         Future.delayed(Duration(milliseconds:4000),(){
