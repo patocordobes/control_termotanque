@@ -18,7 +18,8 @@ enum DeviceStatus{
 enum SoftwareStatus{
   upgrading,
   upgraded,
-  outdated
+  outdated,
+  overUpgraded
 }
 enum WifiStatus{
   connected,
@@ -72,6 +73,8 @@ class Device {
   List<WifiNetwork> wifiNetworkList = [];
   List<Point> points = [];
 
+  List<Point> todayPoints = [];
+
   String temps = "";
 
   Device({
@@ -99,10 +102,12 @@ class Device {
     this.time3 = "00:00",
 
   }){
-    if (version != "1.1.9") {
-      softwareStatus = SoftwareStatus.outdated;
-    }else{
+    if (int.parse(version.split(".")[0])*100 + int.parse(version.split(".")[1])*10 + int.parse(version.split(".")[0]) > 110) {
+      softwareStatus = SoftwareStatus.overUpgraded;
+    }else if (int.parse(version.split(".")[0])*100 + int.parse(version.split(".")[1])*10 + int.parse(version.split(".")[0]) == 110) {
       softwareStatus = SoftwareStatus.upgraded;
+    }else if (int.parse(version.split(".")[0])*100 + int.parse(version.split(".")[1])*10 + int.parse(version.split(".")[0]) < 110) {
+      softwareStatus = SoftwareStatus.outdated;
     }
     if (connectedToWiFi){
       wifiStatus =WifiStatus.connected;
@@ -166,10 +171,12 @@ class Device {
           case "getv":
             print("Version: ${map["d"]["v"]}");
             this.version = map["d"]["v"];
-            if (version != "1.1.9") {
-              softwareStatus = SoftwareStatus.outdated;
-            }else{
+            if (int.parse(version.split(".")[0])*100 + int.parse(version.split(".")[1])*10 + int.parse(version.split(".")[2]) > 120) {
+              softwareStatus = SoftwareStatus.overUpgraded;
+            }else if (int.parse(version.split(".")[0])*100 + int.parse(version.split(".")[1])*10 + int.parse(version.split(".")[2]) == 120) {
               softwareStatus = SoftwareStatus.upgraded;
+            }else if (int.parse(version.split(".")[0])*100 + int.parse(version.split(".")[1])*10 + int.parse(version.split(".")[2]) < 120) {
+              softwareStatus = SoftwareStatus.outdated;
             }
             break;
           case "sets":
@@ -255,15 +262,13 @@ class Device {
 
           if (message.substring(2, 3) == "t") {
             temps = message;
-            for(int i = 0; i < 24; i++){
-              DateTime now = DateTime.now();
-              points.add(Point(
-                  dateTime: now,
-                  device: this));
-            }
+
           }
           if (message.substring(2, 3) == "r") {
             int day = int.parse(message.split("r")[1].split('":')[0]);
+            DateTime now = DateTime.now();
+            int month = now.month;
+            int year = now.year;
             temps = temps.split('{"t$day":[')[1];
             try {
               temps = temps.split(',]}')[0];
@@ -271,12 +276,23 @@ class Device {
               temps = temps.split(',]')[0];
             }
             print("Actualizando temperaturas y tiempos del dia: $day");
-            DateTime now = DateTime.now();
-            int month = now.month;
+
             if (now.day < day) {
               month --;
             }
-            for (int i = 0; i < 24; i++) {
+            if (month == 0){
+              month = 12;
+              year--;
+            }
+            int limite = 24;
+            bool sameDay = false;
+            if (day == now.day && month == now.month && year == now.year) {
+              limite = now.hour +1;
+             sameDay = true;
+            }
+
+
+            for (int i = 0; i < limite; i++) {
               DateTime timeDay = DateTime(
                   now.year,
                   month,
@@ -290,19 +306,25 @@ class Device {
               int temp = 0;
               try {
                 temp = int.parse(temps.split(",")[i]);
-              }catch (e) {}
+              } catch (e) {}
               int rest = 0;
               try {
                 rest = int.parse(message.split(",")[i]);
-              }catch (e) {}
-              points[i] = Point(
-                  temperature: temp,
-                  resistanceTime: rest,
-                  dateTime: timeDay,
-                  device: this);
-
-              points[i].id = await modelsRepository.createPoint(point: points[i]);
+              } catch (e) {}
+              points.add(
+                  Point(
+                      temperature: temp,
+                      resistanceTime: rest,
+                      dateTime: timeDay,
+                      device: this)
+              );
+              if(!sameDay) {
+                points[i].id = await modelsRepository.createPoint(point: points[i]);
+                print(points[i].id);
+              }
             }
+            todayPoints = points;
+            points = [];
             historicalStatus = HistoricalStatus.done;
           }
         }

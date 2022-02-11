@@ -67,6 +67,7 @@ flutter {
 }
 dependencies {
     // ...
+    implementation 'com.google.android.material:material:1.4.0'
     implementation 'com.android.support:multidex:1.0.3'
     'http://ecoinclusion.herokuapp.com/api/puntos/?long_min=${mm.getMapPosition.bounds!.west}&long_max=${mm.getMapPosition.bounds!.east}&lat_min=${mm.getMapPosition.bounds!.south}&lat_max=${mm.getMapPosition.bounds!.north}'
     // ...

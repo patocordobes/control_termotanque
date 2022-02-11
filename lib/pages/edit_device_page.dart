@@ -156,7 +156,7 @@ class _EditDevicePageState extends State<EditDevicePage> {
               subtitle: Text("Actualizando software...")
           ),
         );
-      } else {
+      } else if (device.softwareStatus == SoftwareStatus.upgraded){
         deviceWidget = Container(
           color: Theme
               .of(context)
@@ -170,6 +170,23 @@ class _EditDevicePageState extends State<EditDevicePage> {
               ),
               title: deviceStatus,
               subtitle: Text("Software en la ultima version")
+          ),
+        );
+    //:(device.softwareStatus == SoftwareStatus.overUpgraded)? Icon(Icons.warning,size: 30):
+      }else if (device.softwareStatus == SoftwareStatus.overUpgraded){
+        deviceWidget = Container(
+          color: Theme
+              .of(context)
+              .errorColor,
+          child: ListTile(
+              leading: Column(
+                children: [
+                  Icon(Icons.warning, size: 30),
+                  Text("${device.version}")
+                ],
+              ),
+              title: deviceStatus,
+              subtitle: Text("Software no reconocido ")
           ),
         );
       }

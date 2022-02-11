@@ -107,7 +107,7 @@ class _UpdateDevicePageState extends State<UpdateDevicePage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text("Version del sofware: ${device.version}\n"),
-                  Text("Última version: 1.1.9\n"),
+                  Text("Última version: 1.1.10\n"),
                 ]
               ),
             ),
@@ -145,8 +145,8 @@ class _UpdateDevicePageState extends State<UpdateDevicePage> {
                             await Future.delayed(Duration(milliseconds:5000));
                             FormData formData = new FormData.fromMap({
                             "file": await MultipartFile.fromBytes(
-                            (await rootBundle.load('assets/files/control_temperatura-v1.1.9.ino.generic.bin')).buffer.asInt8List(),
-                            filename: "control_temperatura-v1.1.9.ino.generic.bin"),
+                            (await rootBundle.load('assets/files/control_temperatura-v1.1.10.ino.generic.bin')).buffer.asInt8List(),
+                            filename: "control_temperatura-v1.1.10.ino.generic.bin"),
                             });
                             var dio = Dio(); // with default Options
 

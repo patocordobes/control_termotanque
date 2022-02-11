@@ -23,7 +23,6 @@ class _OrdinalComboBarLineChartState extends State<OrdinalComboBarLineChart> {
   ModelsRepository modelsRepository = ModelsRepository();
   late Device device;
   List<Point> points = [];
-  late Timer timerHistorical;
   DateTime _date = DateTime.now();
   int i = 0;
   final _formKey = GlobalKey<FormState>();
@@ -31,101 +30,100 @@ class _OrdinalComboBarLineChartState extends State<OrdinalComboBarLineChart> {
   @override
   void initState(){
     super.initState();
-    timerHistorical = Timer.periodic(Duration(seconds:40), (timer) { });
+
     messageManager = context.read<MessageManager>();
     device = messageManager.selectedDevice;
-    //modelsRepository.deletePoints(device: device);
-    modelsRepository.getAllPoints(device: device).then((points) async {
-      i = _date.day - 4;
-      if (i < 0){
-        i = 31 - i;
-      }
-      int finish = _date.day  + 4;
-      if(finish > 31){
-        finish = finish - 31;
-      }
-      timerHistorical.cancel();
-      timerHistorical = Timer.periodic(Duration(milliseconds:1), (timer) async  {
-        if (device.historicalStatus == HistoricalStatus.done){
-          i++;
-          if(i > 31){
-            i = i - 31;
-          }
-          if (i == finish){
-            i = _date.day - 4;
-            if (i < 0){
-              i = 31 - i;
-            }
-            timerHistorical.cancel();
-            refresh();
-          }else {
-            DateTime now = DateTime.now();
-            int month = now.month;
-            if (now.day < i) {
-              month --;
-            }
-            device.deviceStatus = DeviceStatus.updating;
-            device.historicalStatus = HistoricalStatus.updating;
-            try{
-              DateTime day =DateTime(
-                  now.year,
-                  month,
-                  i,
-                  0,
-                  0,
-                  0,
-                  0,
-                  0);
-              print("diaaaaa: $day");
-              await modelsRepository.getPoint(device: device, dateTime: day);
-            }catch (e) {
 
-              Map <String, dynamic> map = {
-                "t": "devices/" + device.mac.toUpperCase().substring(3),
-                "a": "geth",
-                "d": {"day": i}
-              };
-              messageManager.send(jsonEncode(map), true);
-              print("Va por el dia $i");
-            }
-          }
-
-        }
-      });
-    });
+    modelsRepository.deletePoints(device: device);
+    refresh();
 
   }
   @override
   void dispose(){
-    timerHistorical.cancel();
     super.dispose();
   }
-  void refresh() {
-    modelsRepository.getPoints(device: device,dateTime: _date).then((points) async {
-      setState(() {
-        this.points = points;
-        device.deviceStatus = DeviceStatus.updated;
-        device.historicalStatus = HistoricalStatus.done;
-      });
-      if (points.isEmpty) {
-        if (DateTime.now().hour != 0 || DateTime.now().day != _date.day) {
+  void refresh() async {
+    if (_date.day == DateTime.now().day && _date.month == DateTime.now().month && _date.year == DateTime.now().year ){
+      if (device.todayPoints.length != DateTime.now().hour + 1) {
+        Map <String, dynamic> map = {
+          "t": "devices/" + device.mac.toUpperCase().substring(3),
+          "a": "geth",
+          "d": {"day": _date.day}
+        };
+        messageManager.send(jsonEncode(map), true);
+        setState(() {
+          device.deviceStatus = DeviceStatus.updating;
           device.historicalStatus = HistoricalStatus.updating;
-          Map <String, dynamic> map = {
-            "t": "devices/" + device.mac.toUpperCase().substring(3),
-            "a": "geth",
-            "d": {"day": _date.day}
-          };
-          messageManager.send(jsonEncode(map), true);
-          setState(() {
-            device.deviceStatus = DeviceStatus.updating;
-            device.historicalStatus = HistoricalStatus.updating;
-          });
-          await Future.delayed(Duration(seconds: 4),);
-          refresh();
-        }
-      }
+        });
+        await Future.delayed(Duration(seconds: 4),);
+        setState(() {
+          this.points = device.todayPoints;
+          device.deviceStatus = DeviceStatus.updated;
+          device.historicalStatus = HistoricalStatus.done;
+        });
+        refresh();
 
-    });
+      }else{
+        print("ya estan todas las horas disponibles");
+      }
+    }else {
+      modelsRepository.getPoints(device: device, dateTime: _date).then((
+          points) async {
+        setState(() {
+          this.points = points;
+          device.deviceStatus = DeviceStatus.updated;
+          device.historicalStatus = HistoricalStatus.done;
+        });
+        print("cantidad de puntos encontrados " + points.length.toString());
+        print(_date.toString());
+        if (points.isEmpty) {
+          if (DateTime(DateTime
+              .now()
+              .year, DateTime
+              .now()
+              .month - 1, DateTime
+              .now()
+              .day + 1).isAfter(_date)) {
+            showDialog(context: context, builder: (_) {
+              return AlertDialog(
+                title: Text("Error"),
+                content: Text("Esta fecha ya no se puede solicictar."),
+                actions: [
+                  TextButton(
+                    child: Text("ACEPTAR"),
+                    onPressed: () {
+                      setState(() {
+                        this.points = [];
+                        device.deviceStatus = DeviceStatus.updated;
+                        device.historicalStatus = HistoricalStatus.done;
+                      });
+                      Navigator.of(context).pop();
+                    },
+                  )
+                ],
+
+              );
+            });
+          } else {
+            Map <String, dynamic> map = {
+              "t": "devices/" + device.mac.toUpperCase().substring(3),
+              "a": "geth",
+              "d": {"day": _date.day}
+            };
+            messageManager.send(jsonEncode(map), true);
+            setState(() {
+              device.deviceStatus = DeviceStatus.updating;
+              device.historicalStatus = HistoricalStatus.updating;
+            });
+            await Future.delayed(Duration(seconds: 4),);
+
+            refresh();
+          }
+        }
+      }, onError: (e) {
+        print(e);
+      });
+    }
   }
   @override
   Widget build(BuildContext context) {
@@ -216,7 +214,6 @@ class _OrdinalComboBarLineChartState extends State<OrdinalComboBarLineChart> {
         measureFn: (Point point, _) => point.resistanceTime,
         data: this.points,
 
-
       ),
       new charts.Series<Point, String>(
         id: 'Temperatura ',
@@ -263,12 +260,12 @@ class DatePickerFormField extends FormField<DateTime> {
 
             date = await showDatePicker(
                 context: context,
-                initialDate: DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day),
-                firstDate: DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day -31),
+                initialDate: state.value!,
+                firstDate: DateTime(DateTime.now().year-10),
                 lastDate: DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day)
             );
             if (date == null){
-              date = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+              date = state.value!;
             }
             state.didChange(date);
             onChanged();

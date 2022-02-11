@@ -44,7 +44,7 @@ class MyBullet extends StatelessWidget{
 class _SearchDevicesPageState extends State<SearchDevicesPage> with WidgetsBindingObserver {
   ModelsRepository modelsRepository = ModelsRepository();
   bool _isInForeground = true;
-  bool connectingToWiFi = false;
+  bool loading = false;
   late Timer timerRedirect;
   late MessageManager messageManager;
   late WifiConfiguration wifiConfiguration;
@@ -97,7 +97,7 @@ class _SearchDevicesPageState extends State<SearchDevicesPage> with WidgetsBindi
 
     messageManager.status = ManagerStatus.updating ;
     messageManager.notifyListeners();
-    //wifiConfiguration.connectToWifi("", "", ""); //TODO descomennatar esto para la release
+    wifiConfiguration.connectToWifi("", "", ""); //TODO descomennatar esto para la release
 
   }
   @override
@@ -226,6 +226,60 @@ class _SearchDevicesPageState extends State<SearchDevicesPage> with WidgetsBindi
                           });
                         },
                       ),
+                      TextButton( // Diseña el boton
+                        child: Text("CONECTAR"),
+                        onPressed: () async {
+
+                          Navigator.of(context).pop();
+                          messageManager.selectNewDevice(device);
+                          messageManager.updateNewDeviceConnection();
+
+                          timerRedirect.cancel();
+                          timerRedirect = Timer.periodic(Duration(milliseconds:1), (timer) {
+
+                            if (_isInForeground ){
+
+
+                              if (messageManager.newDevice.connectionStatus == ConnectionStatus.connecting) {
+                                timerRedirect.cancel();
+                                print("siuuu");
+
+                                wifiConfiguration.isConnectedToWifi("${messageManager.newDevice.name}").then((connected) async {
+                                  if (connected){
+
+
+                                    messageManager.update(updateWifi: false);
+                                    await Future.delayed(Duration(seconds:2));
+                                    messageManager.updateDeviceConnection(messageManager.newDevice);
+                                    timerRedirect.cancel();
+                                    timerRedirect = Timer.periodic(Duration(milliseconds:1), (timer) {
+                                      if(mounted && messageManager.newDevice.connectionStatus == ConnectionStatus.local) {
+                                        print("siuuu");
+                                        timerRedirect.cancel();
+                                        openContainer();
+                                      }
+                                    });
+                                    Future.delayed(Duration(milliseconds:3000),(){
+                                      timerRedirect.cancel();
+                                    });
+                                  }else{
+                                    messageManager.disconnectDevice(messageManager.newDevice);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Debe seleccionar la red correcta.')),
+                                    );
+                                  }
+                                });
+                              }else{
+                                print("noooooooooooooooo");
+                              }
+
+                            }
+                          });
+                          Future.delayed(Duration(milliseconds:3000),(){
+                            timerRedirect.cancel();
+                          });
+                        },
+                      ),
                     ],
                   );
                 });
@@ -273,7 +327,6 @@ class SearchedDeviceWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context){
     return ListTile(
-      enabled: (device.connectionStatus == ConnectionStatus.connecting)? false:true,
       leading: (device.softwareStatus == SoftwareStatus.outdated)? Icon(Icons.new_releases,size: 30):Icon(
         IconData(59653, fontFamily: 'signal_wifi'),size: 30,),
       title: Text('${device.name}'),

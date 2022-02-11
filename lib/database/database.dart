@@ -27,7 +27,7 @@ class DatabaseProvider {
 
     var database = await openDatabase(
       path,
-      version: 8,
+      version: 9,
       onUpgrade: onUpgrade,
       onCreate: initDB,
     );
@@ -48,7 +48,7 @@ class DatabaseProvider {
               "id INTEGER PRIMARY KEY, "
               "temperature INTEGER, "
               "resistance_time INTEGER,"
-              "date_time DATETIME,"
+              "date_time TEXT,"
               "point_device INTEGER NOT NULL,"
               "FOREIGN KEY (point_device) REFERENCES $deviceTable (id)"
               ");"
@@ -95,7 +95,7 @@ class DatabaseProvider {
             "id INTEGER PRIMARY KEY, "
             "temperature INTEGER, "
             "resistance_time INTEGER,"
-            "date_time DATETIME,"
+            "date_time TEXT,"
             "point_device INTEGER NOT NULL,"
             "FOREIGN KEY (point_device) REFERENCES $deviceTable (id)"
             ");"

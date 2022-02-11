@@ -62,6 +62,7 @@ class ModelsRepository {
 
     }
     result = await deviceDao.createPoint(point);
+
     //print("point $result created");
     return result;
   }

@@ -197,7 +197,7 @@ class DeviceWidget extends StatelessWidget {
           Expanded(
             child: ListTile(
               enabled: (device.connectionStatus == ConnectionStatus.connecting)? false:true,
-              leading: (device.softwareStatus == SoftwareStatus.outdated)? Icon(Icons.new_releases,size: 30):Icon(
+              leading: (device.softwareStatus == SoftwareStatus.outdated)? Icon(Icons.new_releases,size: 30):(device.softwareStatus == SoftwareStatus.overUpgraded)? Icon(Icons.warning,size: 30): Icon(
                 IconData(59653, fontFamily: 'signal_wifi'),size: 30,),
               title: Text('${device.name}'),
               subtitle: Text(

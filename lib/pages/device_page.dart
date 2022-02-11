@@ -233,10 +233,10 @@ class _DevicePageState extends State<DevicePage> {
                           height: 20,
                           decoration: BoxDecoration(
                             boxShadow: [
-                              BoxShadow(color:(device.resistance)?Colors.red.shade400:Colors.transparent,blurRadius: 10,spreadRadius: 10)
+                              BoxShadow(color:(device.resistance)?Colors.green.shade400:Colors.transparent,blurRadius: 10,spreadRadius: 10)
                             ],
                             shape: BoxShape.circle,
-                            color: (device.resistance)?Colors.red.shade500:Colors.red.shade900,
+                            color: (device.resistance)?Colors.green.shade500:Colors.red.shade900,
                           ),
                         ),
                           title:Text("Estado de la resistencia: "),

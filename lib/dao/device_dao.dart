@@ -57,18 +57,18 @@ class DeviceDao {
     final db = await dbProvider.database;
 
     var query = "SELECT * FROM $pointTable where point_device = ${device
-        .id} and datetime(date_time) BETWEEN  datetime('${dateTime.year}-${dateTime
-        .month}-${dateTime.day} 00:00:00') and datetime('${dateTime
-        .year}-${dateTime.month}-${dateTime.day} 23:59:59');";
+        .id} and date_time BETWEEN  '${dateTime.year}-${dateTime
+        .month < 10 ? '0' + dateTime.month.toString() : dateTime.month.toString()}-${dateTime.day < 10 ? '0' + dateTime.day.toString() : dateTime.day.toString()} 00:00:00.000' and '${dateTime
+        .year}-${dateTime.month < 10 ? '0' + dateTime.month.toString() : dateTime.month.toString()}-${dateTime.day < 10 ? '0' + dateTime.day.toString() : dateTime.day.toString()} 23:59:59.000';";
+
     if (dateTime.day == DateTime.now().day){
       query = "SELECT * FROM $pointTable where point_device = ${device
-          .id} and datetime(date_time) BETWEEN  datetime('${dateTime.year}-${dateTime
-          .month}-${dateTime.day} 00:00:00') and datetime('${dateTime
-          .year}-${dateTime.month}-${dateTime.day} ${DateTime.now().hour}:59:59');";
+          .id} and date_time BETWEEN  '${dateTime.year}-${dateTime
+          .month < 10 ? '0' + dateTime.month.toString() : dateTime.month.toString()}-${dateTime.day < 10 ? '0' + dateTime.day.toString() : dateTime.day.toString()} 00:00:00.000' and '${dateTime
+          .year}-${dateTime.month < 10 ? '0' + dateTime.month.toString() : dateTime.month.toString()}-${dateTime.day < 10 ? '0' + dateTime.day.toString() : dateTime.day.toString()} ${DateTime.now().hour < 10 ? '0' + DateTime.now().hour.toString() : DateTime.now().hour.toString()}:59:59.000';";
     }
     print(query);
-    var result = await db
-        .rawQuery(query);
+    var result = await db.rawQuery(query);
     return result;
   }
   Future<List<Map<String,dynamic>>> selectAllPoints(Device device) async {
@@ -84,8 +84,8 @@ class DeviceDao {
 
     final db = await dbProvider.database;
     var query = "SELECT * FROM $pointTable where point_device = ${device
-        .id} and datetime(date_time) = datetime('${dateTime.year}-${dateTime
-        .month}-${dateTime.day} ${dateTime.hour}:00:00');";
+        .id} and date_time = '${dateTime.year}-${dateTime
+        .month < 10? '0' + dateTime.month.toString() : dateTime.month.toString()}-${dateTime.day < 10 ? '0' + dateTime.day.toString() : dateTime.day.toString()} ${dateTime.hour < 10 ? '0' + dateTime.hour.toString() : dateTime.hour.toString()}:00:00';";
     var result = await db
         .rawQuery(query);
     return result;
